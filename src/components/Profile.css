@@ -1,0 +1,67 @@
+/* src/components/Profile.css */
+.profile-page {
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-card {
+  background-color: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.profile-card h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.danger-zone {
+  border: 2px solid #fee2e2;
+  background-color: #fef2f2;
+}
+
+.danger-zone h2 {
+  color: #991b1b;
+}
+
+.danger-zone p {
+  color: #b91c1c;
+  margin-bottom: 20px;
+}
+
+.danger-zone .btn-danger {
+  background-color: #dc2626;
+}
+
+.danger-zone .btn-danger:hover {
+  background-color: #b91c1c;
+}

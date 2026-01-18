@@ -1,0 +1,34 @@
+/* src/components/CategoryForm.css */
+/* Same as TransactionForm.css for type buttons */
+.type-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #ddd;
+  background-color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.type-btn:hover {
+  border-color: #3b82f6;
+}
+
+.type-btn.active {
+  border-color: transparent;
+  color: white;
+}
+
+.type-btn.active.income {
+  background-color: #10b981;
+}
+
+.type-btn.active.expense {
+  background-color: #ef4444;
+}
