@@ -1,4 +1,4 @@
-// src/components/TransactionForm.js - UPDATED VERSION
+// src/components/TransactionForm.jsx - FIXED VERSION
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import ApiService from "../services/api";
@@ -16,65 +16,77 @@ function TransactionForm({ currentUser }) {
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true); // NEW: for initial load
   const [error, setError] = useState("");
   const [isEdit, setIsEdit] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams();
 
+  // FIX 1: Clean useEffect
   useEffect(() => {
-    fetchAccounts();
-    fetchCategories();
+    const initializeForm = async () => {
+      if (!currentUser) {
+        navigate("/login");
+        return;
+      }
 
-    if (id) {
-      setIsEdit(true);
-    }
-  }, [currentUser]);
+      try {
+        setInitialLoading(true);
+        
+        // Fetch accounts and categories in parallel
+        const [accountsData, categoriesData] = await Promise.all([
+          ApiService.getAccounts(),
+          ApiService.getCategories()
+        ]);
 
+        setAccounts(accountsData);
+        setCategories(categoriesData);
+
+        // Set default account if available
+        if (accountsData.length > 0 && !formData.accountId) {
+          setFormData(prev => ({
+            ...prev,
+            accountId: accountsData[0].accountId?.toString() || accountsData[0].id?.toString() || ""
+          }));
+        }
+
+        // Check if editing
+        if (id) {
+          setIsEdit(true);
+          // TODO: Load transaction data if editing
+        }
+      } catch (err) {
+        console.error("Failed to initialize form:", err);
+        setError("Failed to load form data. Please try again.");
+        
+        // Create default categories if none exist
+        if (err.message?.includes("categories") || err.response?.status === 404) {
+          await createDefaultCategories();
+        }
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    initializeForm();
+  }, [currentUser, id, navigate]); // REMOVED: formData.accountId dependency
+
+  // FIX 2: Separate effect for filtering categories
   useEffect(() => {
-    if (formData.type) {
-      const filtered = categories.filter((cat) => cat.type === formData.type);
+    if (categories.length > 0 && formData.type) {
+      const filtered = categories.filter(cat => cat.type === formData.type);
       setFilteredCategories(filtered);
 
-      // Reset category if current one doesn't match type
-      if (formData.categoryId) {
-        const currentCat = categories.find(
-          (c) => c.categoryId === parseInt(formData.categoryId),
-        );
-        if (currentCat && currentCat.type !== formData.type) {
-          setFormData((prev) => ({ ...prev, categoryId: "" }));
-        }
+      // Auto-select first category if none selected
+      if (filtered.length > 0 && !formData.categoryId) {
+        setFormData(prev => ({
+          ...prev,
+          categoryId: filtered[0].categoryId?.toString() || filtered[0].id?.toString() || ""
+        }));
       }
     }
   }, [formData.type, categories]);
-
-  const fetchAccounts = async () => {
-    try {
-      const userAccounts = await ApiService.getAccounts();
-      setAccounts(userAccounts);
-
-      if (userAccounts.length > 0 && !formData.accountId) {
-        setFormData((prev) => ({
-          ...prev,
-          accountId: userAccounts[0].accountId.toString(),
-        }));
-      }
-      // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      setError("Failed to fetch accounts. Please try again.");
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      // REMOVE: currentUser.id parameter
-      const data = await ApiService.getCategories();
-      setCategories(data);
-    } catch (err) {
-      console.error("Failed to fetch categories:", err);
-      createDefaultCategories();
-    }
-  };
 
   const createDefaultCategories = async () => {
     try {
@@ -90,33 +102,33 @@ function TransactionForm({ currentUser }) {
         { name: "Healthcare", type: "expense" },
         { name: "Education", type: "expense" },
         { name: "Utilities", type: "expense" },
-        { name: "Other", type: "income" },
-        { name: "Other", type: "expense" },
+        { name: "Other Income", type: "income" },
+        { name: "Other Expense", type: "expense" },
       ];
 
       for (const category of defaultCategories) {
         try {
           await ApiService.createCategory(category);
-          // eslint-disable-next-line no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         } catch (e) {
           // Category might already exist
+          console.log("Category exists:", category.name);
         }
       }
 
       // Refresh categories
       const data = await ApiService.getCategories();
       setCategories(data);
-      // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      console.error("Failed to create default categories");
+      console.error("Failed to create default categories:", err);
     }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
     setError("");
   };
@@ -126,13 +138,8 @@ function TransactionForm({ currentUser }) {
     setLoading(true);
     setError("");
 
-    // Validation
-    if (
-      !formData.accountId ||
-      !formData.amount ||
-      !formData.type ||
-      !formData.categoryId
-    ) {
+    // FIX 3: Better validation
+    if (!formData.accountId || !formData.amount || !formData.categoryId) {
       setError("Please fill all required fields");
       setLoading(false);
       return;
@@ -146,50 +153,115 @@ function TransactionForm({ currentUser }) {
     }
 
     try {
+      // FIX 4: Prepare data for backend
       const transactionData = {
         amount: amount,
         type: formData.type,
         categoryId: parseInt(formData.categoryId),
-        accountId: formData.accountId, // Make sure accountId is included
+        accountId: formData.accountId,
+        description: formData.description.trim() || null
       };
 
-      // Add description if provided
-      if (formData.description.trim()) {
-        transactionData.description = formData.description.trim();
-      }
       console.log("Submitting transaction:", transactionData);
+      
+      // Check if we're editing or creating
+      let response;
+      if (isEdit && id) {
+        response = await ApiService.updateTransaction(id, transactionData);
+      } else {
+        response = await ApiService.createTransaction(transactionData);
+      }
 
-      const response = await ApiService.createTransaction(transactionData);
-
-      console.log("Transaction created:", response);
-
+      console.log("Transaction saved:", response);
+      
+      // Redirect to transactions page
       navigate("/transactions");
     } catch (err) {
       console.error("Transaction error:", err);
-      setError(
-        err.message ||
-          "Failed to save transaction. Please check your balance and try again.",
-      );
+      
+      // FIX 5: Better error messages
+      let errorMsg = "Failed to save transaction. ";
+      
+      if (err.response?.data?.message) {
+        errorMsg += err.response.data.message;
+      } else if (err.message?.includes("balance")) {
+        errorMsg += "Insufficient account balance.";
+      } else if (err.message?.includes("network")) {
+        errorMsg += "Network error. Please check your connection.";
+      } else {
+        errorMsg += "Please try again.";
+      }
+      
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  // Get account name for display
+  // FIX 6: Helper functions with null checks
   const getAccountName = () => {
-    const account = accounts.find(
-      (a) => a.accountId === Number(formData.accountId),
+    if (!formData.accountId || accounts.length === 0) return "";
+    
+    const account = accounts.find(a => 
+      a.accountId?.toString() === formData.accountId || 
+      a.id?.toString() === formData.accountId
     );
+    
     return account ? account.name : "";
   };
 
-  // Get account balance
   const getAccountBalance = () => {
-    const account = accounts.find(
-      (a) => a.accountId === Number(formData.accountId),
+    if (!formData.accountId || accounts.length === 0) return 0;
+    
+    const account = accounts.find(a => 
+      a.accountId?.toString() === formData.accountId || 
+      a.id?.toString() === formData.accountId
     );
-    return account ? account.balance : 0;
+    
+    return account ? (account.balance || 0) : 0;
   };
+
+  // FIX 7: Show loading state
+  if (initialLoading) {
+    return (
+      <div className="form-page">
+        <div className="form-card loading-card">
+          <div className="loading-spinner"></div>
+          <p>Loading transaction form...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // FIX 8: Show error if no accounts
+  if (accounts.length === 0 && !initialLoading) {
+    return (
+      <div className="form-page">
+        <div className="form-card">
+          <h1>Add New Transaction</h1>
+          <div className="alert alert-error">
+            No accounts found. You need to create an account first.
+          </div>
+          <div className="form-actions">
+            <button
+              type="button"
+              onClick={() => navigate("/accounts/new")}
+              className="btn btn-primary"
+            >
+              Create Account
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="btn btn-outline"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="form-page">
@@ -198,15 +270,14 @@ function TransactionForm({ currentUser }) {
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        {formData.accountId && (
+        {formData.accountId && accounts.length > 0 && (
           <div className="account-info-card">
             <h3>Account Info</h3>
             <p>
               <strong>Account:</strong> {getAccountName()}
             </p>
             <p>
-              <strong>Current Balance:</strong> ₹
-              {getAccountBalance().toFixed(2)}
+              <strong>Current Balance:</strong> ₹{getAccountBalance().toFixed(2)}
             </p>
           </div>
         )}
@@ -223,14 +294,23 @@ function TransactionForm({ currentUser }) {
               value={formData.accountId}
               onChange={handleChange}
               required
-              disabled={isEdit}
+              disabled={isEdit || loading}
             >
-              <option value="">Select Account</option>
-              {accounts.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.name} (₹{account.balance.toFixed(2)})
-                </option>
-              ))}
+              {accounts.length === 0 ? (
+                <option value="">No accounts available</option>
+              ) : (
+                <>
+                  <option value="">Select Account</option>
+                  {accounts.map((account) => (
+                    <option 
+                      key={account.accountId || account.id} 
+                      value={account.accountId?.toString() || account.id?.toString()}
+                    >
+                      {account.name} (₹{(account.balance || 0).toFixed(2)})
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -242,18 +322,16 @@ function TransactionForm({ currentUser }) {
               <button
                 type="button"
                 className={`type-btn ${formData.type === "income" ? "active income" : ""}`}
-                onClick={() =>
-                  setFormData((prev) => ({ ...prev, type: "income" }))
-                }
+                onClick={() => setFormData(prev => ({ ...prev, type: "income" }))}
+                disabled={loading}
               >
                 💰 Income
               </button>
               <button
                 type="button"
                 className={`type-btn ${formData.type === "expense" ? "active expense" : ""}`}
-                onClick={() =>
-                  setFormData((prev) => ({ ...prev, type: "expense" }))
-                }
+                onClick={() => setFormData(prev => ({ ...prev, type: "expense" }))}
+                disabled={loading}
               >
                 💸 Expense
               </button>
@@ -265,7 +343,7 @@ function TransactionForm({ currentUser }) {
               Amount (₹) <span className="required">*</span>
             </label>
             <div className="amount-input-container">
-              <span className="currency-symbol"></span>
+              <span className="currency-symbol">₹</span>
               <input
                 type="number"
                 id="amount"
@@ -277,6 +355,7 @@ function TransactionForm({ currentUser }) {
                 step="0.01"
                 min="0.01"
                 required
+                disabled={loading}
               />
             </div>
             {formData.type === "expense" && formData.accountId && (
@@ -297,18 +376,28 @@ function TransactionForm({ currentUser }) {
               value={formData.categoryId}
               onChange={handleChange}
               required
+              disabled={loading || filteredCategories.length === 0}
             >
-              <option value="">Select Category</option>
-              {filteredCategories.map((category) => (
-                <option key={category.categoryId} value={category.categoryId}>
-                  {category.name}
-                </option>
-              ))}
+              {filteredCategories.length === 0 ? (
+                <option value="">No categories available</option>
+              ) : (
+                <>
+                  <option value="">Select Category</option>
+                  {filteredCategories.map((category) => (
+                    <option 
+                      key={category.categoryId || category.id} 
+                      value={category.categoryId?.toString() || category.id?.toString()}
+                    >
+                      {category.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
             {filteredCategories.length === 0 && (
               <p className="form-help">
                 No {formData.type} categories found.{" "}
-                <Link to="/categories/new">Create one</Link>
+                <Link to="/categories">Manage categories</Link>
               </p>
             )}
           </div>
@@ -325,6 +414,7 @@ function TransactionForm({ currentUser }) {
               onChange={handleChange}
               placeholder="Add a description for this transaction..."
               rows="3"
+              disabled={loading}
             />
           </div>
 
@@ -340,7 +430,7 @@ function TransactionForm({ currentUser }) {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={loading}
+              disabled={loading || !formData.accountId || !formData.categoryId}
             >
               {loading ? (
                 <>
