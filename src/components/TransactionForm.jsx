@@ -1,11 +1,10 @@
-// src/components/TransactionForm.js - FIXED VERSION
+// src/components/TransactionForm.js - UPDATED VERSION
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import ApiService from "../services/api";
-import { useAuth } from "../contexts/AuthContext"; // Add this import
 import "./TransactionForm.css";
 
-function TransactionForm() {
+function TransactionForm({ currentUser }) {
   const [formData, setFormData] = useState({
     accountId: "",
     amount: "",
@@ -16,66 +15,38 @@ function TransactionForm() {
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
-  const [loading, setLoading] = useState(true); // Start with true
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isEdit, setIsEdit] = useState(false);
-  const [pageLoaded, setPageLoaded] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams();
-  const { currentUser } = useAuth(); // Get currentUser from context
 
-  // Check authentication first
   useEffect(() => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
+    fetchAccounts();
+    fetchCategories();
+
+    if (id) {
+      setIsEdit(true);
     }
-  }, [currentUser, navigate]);
+  }, [currentUser]);
 
-  // Fetch data once when component mounts
   useEffect(() => {
-    if (currentUser && !pageLoaded) {
-      const initializeData = async () => {
-        try {
-          setLoading(true);
-          await Promise.all([fetchAccounts(), fetchCategories()]);
-
-          if (id) {
-            setIsEdit(true);
-            // Load transaction data if editing
-            // await fetchTransaction(id);
-          }
-          
-          setPageLoaded(true);
-        } catch (err) {
-          console.error("Failed to initialize:", err);
-          setError("Failed to load page data");
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      initializeData();
-    }
-  }, [currentUser, pageLoaded, id]); // Remove currentUser from dependency array
-
-  // Filter categories based on type
-  useEffect(() => {
-    if (categories.length > 0) {
+    if (formData.type) {
       const filtered = categories.filter((cat) => cat.type === formData.type);
       setFilteredCategories(filtered);
 
+      // Reset category if current one doesn't match type
       if (formData.categoryId) {
         const currentCat = categories.find(
-          (c) => c.categoryId === parseInt(formData.categoryId)
+          (c) => c.categoryId === parseInt(formData.categoryId),
         );
         if (currentCat && currentCat.type !== formData.type) {
           setFormData((prev) => ({ ...prev, categoryId: "" }));
         }
       }
     }
-  }, [formData.type, categories, formData.categoryId]);
+  }, [formData.type, categories]);
 
   const fetchAccounts = async () => {
     try {
@@ -88,23 +59,20 @@ function TransactionForm() {
           accountId: userAccounts[0].accountId.toString(),
         }));
       }
+      // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      console.error("Failed to fetch accounts:", err);
-      setError("Failed to load accounts. Please try again.");
+      setError("Failed to fetch accounts. Please try again.");
     }
   };
 
   const fetchCategories = async () => {
     try {
+      // REMOVE: currentUser.id parameter
       const data = await ApiService.getCategories();
       setCategories(data);
-      
-      if (data.length === 0) {
-        await createDefaultCategories();
-      }
     } catch (err) {
       console.error("Failed to fetch categories:", err);
-      await createDefaultCategories();
+      createDefaultCategories();
     }
   };
 
@@ -129,16 +97,18 @@ function TransactionForm() {
       for (const category of defaultCategories) {
         try {
           await ApiService.createCategory(category);
-        // eslint-disable-next-line no-unused-vars
+          // eslint-disable-next-line no-unused-vars
         } catch (e) {
-          console.log("Category might already exist:", category.name);
+          // Category might already exist
         }
       }
 
+      // Refresh categories
       const data = await ApiService.getCategories();
       setCategories(data);
+      // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      console.error("Failed to create default categories:", err);
+      console.error("Failed to create default categories");
     }
   };
 
@@ -156,12 +126,13 @@ function TransactionForm() {
     setLoading(true);
     setError("");
 
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
-
-    if (!formData.accountId || !formData.amount || !formData.categoryId) {
+    // Validation
+    if (
+      !formData.accountId ||
+      !formData.amount ||
+      !formData.type ||
+      !formData.categoryId
+    ) {
       setError("Please fill all required fields");
       setLoading(false);
       return;
@@ -179,65 +150,46 @@ function TransactionForm() {
         amount: amount,
         type: formData.type,
         categoryId: parseInt(formData.categoryId),
-        accountId: formData.accountId,
-        userId: currentUser.id, // Add userId
+        accountId: formData.accountId, // Make sure accountId is included
       };
 
+      // Add description if provided
       if (formData.description.trim()) {
         transactionData.description = formData.description.trim();
       }
-
       console.log("Submitting transaction:", transactionData);
+
       const response = await ApiService.createTransaction(transactionData);
+
       console.log("Transaction created:", response);
 
       navigate("/transactions");
     } catch (err) {
       console.error("Transaction error:", err);
       setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to save transaction. Please check your balance and try again."
+        err.message ||
+          "Failed to save transaction. Please check your balance and try again.",
       );
     } finally {
       setLoading(false);
     }
   };
 
+  // Get account name for display
   const getAccountName = () => {
-    if (!formData.accountId || accounts.length === 0) return "";
     const account = accounts.find(
-      (a) => a.accountId === Number(formData.accountId)
+      (a) => a.accountId === Number(formData.accountId),
     );
     return account ? account.name : "";
   };
 
+  // Get account balance
   const getAccountBalance = () => {
-    if (!formData.accountId || accounts.length === 0) return 0;
     const account = accounts.find(
-      (a) => a.accountId === Number(formData.accountId)
+      (a) => a.accountId === Number(formData.accountId),
     );
     return account ? account.balance : 0;
   };
-
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="form-page">
-        <div className="form-card">
-          <div className="loading-container">
-            <div className="spinner-large"></div>
-            <p>Loading transaction form...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if no user
-  if (!currentUser) {
-    return null; // Will redirect in useEffect
-  }
 
   return (
     <div className="form-page">
@@ -246,7 +198,7 @@ function TransactionForm() {
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        {formData.accountId && accounts.length > 0 && (
+        {formData.accountId && (
           <div className="account-info-card">
             <h3>Account Info</h3>
             <p>
@@ -271,26 +223,15 @@ function TransactionForm() {
               value={formData.accountId}
               onChange={handleChange}
               required
-              disabled={isEdit || accounts.length === 0}
+              disabled={isEdit}
             >
-              {accounts.length === 0 ? (
-                <option value="">No accounts available</option>
-              ) : (
-                <>
-                  <option value="">Select Account</option>
-                  {accounts.map((account) => (
-                    <option key={account.accountId} value={account.accountId}>
-                      {account.name} (₹{account.balance.toFixed(2)})
-                    </option>
-                  ))}
-                </>
-              )}
+              <option value="">Select Account</option>
+              {accounts.map((account) => (
+                <option key={account.accountId} value={account.accountId}>
+                  {account.name} (₹{account.balance.toFixed(2)})
+                </option>
+              ))}
             </select>
-            {accounts.length === 0 && (
-              <p className="form-help">
-                No accounts found. <Link to="/accounts/new">Create an account first</Link>
-              </p>
-            )}
           </div>
 
           <div className="form-group">
@@ -304,7 +245,6 @@ function TransactionForm() {
                 onClick={() =>
                   setFormData((prev) => ({ ...prev, type: "income" }))
                 }
-                disabled={loading}
               >
                 💰 Income
               </button>
@@ -314,7 +254,6 @@ function TransactionForm() {
                 onClick={() =>
                   setFormData((prev) => ({ ...prev, type: "expense" }))
                 }
-                disabled={loading}
               >
                 💸 Expense
               </button>
@@ -326,7 +265,7 @@ function TransactionForm() {
               Amount (₹) <span className="required">*</span>
             </label>
             <div className="amount-input-container">
-              <span className="currency-symbol">₹</span>
+              <span className="currency-symbol"></span>
               <input
                 type="number"
                 id="amount"
@@ -338,10 +277,9 @@ function TransactionForm() {
                 step="0.01"
                 min="0.01"
                 required
-                disabled={loading}
               />
             </div>
-            {formData.type === "expense" && formData.accountId && accounts.length > 0 && (
+            {formData.type === "expense" && formData.accountId && (
               <p className="form-help">
                 Available balance: ₹{getAccountBalance().toFixed(2)}
               </p>
@@ -359,25 +297,18 @@ function TransactionForm() {
               value={formData.categoryId}
               onChange={handleChange}
               required
-              disabled={loading || filteredCategories.length === 0}
             >
-              {filteredCategories.length === 0 ? (
-                <option value="">No categories available</option>
-              ) : (
-                <>
-                  <option value="">Select Category</option>
-                  {filteredCategories.map((category) => (
-                    <option key={category.categoryId} value={category.categoryId}>
-                      {category.name}
-                    </option>
-                  ))}
-                </>
-              )}
+              <option value="">Select Category</option>
+              {filteredCategories.map((category) => (
+                <option key={category.categoryId} value={category.categoryId}>
+                  {category.name}
+                </option>
+              ))}
             </select>
             {filteredCategories.length === 0 && (
               <p className="form-help">
                 No {formData.type} categories found.{" "}
-                <Link to="/categories">Manage categories</Link>
+                <Link to="/categories/new">Create one</Link>
               </p>
             )}
           </div>
@@ -394,7 +325,6 @@ function TransactionForm() {
               onChange={handleChange}
               placeholder="Add a description for this transaction..."
               rows="3"
-              disabled={loading}
             />
           </div>
 
@@ -410,7 +340,7 @@ function TransactionForm() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={loading || accounts.length === 0}
+              disabled={loading}
             >
               {loading ? (
                 <>
