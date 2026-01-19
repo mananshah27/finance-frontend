@@ -1,10 +1,9 @@
+// src/services/api.js - FIXED VERSION
 const API_BASE_URL = import.meta.env.PROD 
   ? 'https://finance-backend-jtpz.onrender.com/api'
   : 'http://localhost:3000/api';
 
-
 class ApiService {
-  // Helper function for making API calls with auth
   static async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
     
@@ -25,15 +24,15 @@ class ApiService {
       method: options.method,
     };
 
-    // Smart body handling
     if (options.body !== undefined) {
-      config.body = typeof options.body === 'string' 
+      // FIX: Properly stringify the body
+      const bodyString = typeof options.body === 'string' 
         ? options.body 
         : JSON.stringify(options.body);
       
-      console.log('📦 Request Body:', typeof config.body === 'string' 
-        ? config.body.substring(0, 100) 
-        : config.body);
+      config.body = bodyString;
+      
+      console.log('📦 Request Body:', bodyString);
     }
 
     try {
@@ -122,8 +121,8 @@ class ApiService {
 
   static async getAccounts() {
     const data = await this.request('/accounts');
-    // Check response structure
-    return data.accounts || data;  // ✅ Both cases handled
+    console.log('Accounts data received:', data);
+    return data.accounts || data || [];
   }
 
   static async getAccountById(accountId) {
@@ -152,7 +151,9 @@ class ApiService {
   }
 
   static async getCategories() {
-    return this.request('/categories');
+    const data = await this.request('/categories');
+    console.log('Categories data received:', data);
+    return data.categories || data || [];
   }
 
   static async getCategoryById(categoryId) {
@@ -172,35 +173,66 @@ class ApiService {
     });
   }
 
-  // Transaction APIs - UPDATED
+  // Transaction APIs - CRITICAL FIXES
   static async createTransaction(transactionData) {
+    console.log('Creating transaction with data:', transactionData);
+    
+    // FIX 1: Validate data before sending
+    if (!transactionData.accountId || transactionData.accountId.includes('₹')) {
+      throw new Error('Invalid account ID');
+    }
+    
+    if (!transactionData.categoryId) {
+      throw new Error('Category ID is required');
+    }
+    
+    // FIX 2: Ensure proper data types
+    const cleanData = {
+      amount: parseFloat(transactionData.amount),
+      type: transactionData.type,
+      categoryId: String(transactionData.categoryId).trim(),
+      accountId: String(transactionData.accountId).trim(),
+    };
+    
+    // Add optional fields
+    if (transactionData.description) {
+      cleanData.description = String(transactionData.description).trim();
+    }
+    
+    console.log('Sending cleaned transaction data:', cleanData);
+    
     return this.request('/transactions', {
       method: 'POST',
-      body: transactionData,  // ✅ transactionData already has accountId
+      body: cleanData,
     });
   }
 
   static async getTransactions(accountId, filters = {}) {
+    if (!accountId) {
+      console.warn('No accountId provided for getTransactions');
+      return [];
+    }
+    
     const queryParams = new URLSearchParams({
-      accountId,
+      accountId: String(accountId),
       ...filters
     }).toString();
 
+    console.log('Fetching transactions with params:', queryParams);
+    
     const data = await this.request(`/transactions?${queryParams}`);
-    return data.transactions;
+    return data.transactions || data || [];
   }
 
   static async getTransactionById(transactionId, accountId) {
     return this.request(`/transactions/${transactionId}?accountId=${accountId}`);
   }
 
-  static async updateTransaction(transactionId, accountId, updates) {
+  static async updateTransaction(transactionId, updates) {
+    // FIX: Removed accountId parameter for consistency
     return this.request(`/transactions/${transactionId}`, {
       method: 'PUT',
-      body: {
-        ...updates,
-        accountId,
-      },
+      body: updates,
     });
   }
 

@@ -1,4 +1,4 @@
-// src/components/TransactionForm.jsx - URGENT FIX
+// src/components/TransactionForm.jsx - FINAL FIX
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import ApiService from "../services/api";
@@ -24,7 +24,7 @@ function TransactionForm({ currentUser }) {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  // FIX 1: Initialize form properly
+  // Initialize form
   useEffect(() => {
     const initializeForm = async () => {
       if (!currentUser) {
@@ -35,21 +35,29 @@ function TransactionForm({ currentUser }) {
       try {
         setInitialLoading(true);
         
-        // Fetch accounts and categories
-        const accountsData = await ApiService.getAccounts();
-        const categoriesData = await ApiService.getCategories();
-        
-        setAccounts(accountsData);
-        setCategories(categoriesData);
+        // Fetch data
+        const [accountsData, categoriesData] = await Promise.all([
+          ApiService.getAccounts(),
+          ApiService.getCategories()
+        ]);
 
-        // Set default account if available
-        if (accountsData.length > 0 && !formData.accountId) {
-          // FIX: Use account.id not accountId
+        console.log("Accounts:", accountsData);
+        console.log("Categories:", categoriesData);
+
+        setAccounts(Array.isArray(accountsData) ? accountsData : []);
+        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+
+        // Set default account
+        if (Array.isArray(accountsData) && accountsData.length > 0) {
           const firstAccount = accountsData[0];
-          setFormData(prev => ({
-            ...prev,
-            accountId: firstAccount.id?.toString() || firstAccount._id?.toString() || ""
-          }));
+          const accountId = firstAccount.id || firstAccount._id || firstAccount.accountId;
+          
+          if (accountId) {
+            setFormData(prev => ({
+              ...prev,
+              accountId: String(accountId)
+            }));
+          }
         }
 
         if (id) {
@@ -57,16 +65,7 @@ function TransactionForm({ currentUser }) {
         }
       } catch (err) {
         console.error("Failed to initialize:", err);
-        setError("Failed to load data");
-        
-        // Try to create default categories
-        try {
-          await createDefaultCategories();
-          const newCategories = await ApiService.getCategories();
-          setCategories(newCategories);
-        } catch (categoryErr) {
-          console.error("Could not create categories:", categoryErr);
-        }
+        setError("Failed to load form data");
       } finally {
         setInitialLoading(false);
       }
@@ -75,69 +74,48 @@ function TransactionForm({ currentUser }) {
     initializeForm();
   }, [currentUser, id, navigate]);
 
-  // FIX 2: Filter categories properly
+  // Filter categories by type
   useEffect(() => {
-    if (categories.length > 0 && formData.type) {
+    if (Array.isArray(categories) && categories.length > 0 && formData.type) {
       const filtered = categories.filter(cat => cat.type === formData.type);
       setFilteredCategories(filtered);
 
       // Auto-select first category
       if (filtered.length > 0 && !formData.categoryId) {
-        setFormData(prev => ({
-          ...prev,
-          categoryId: filtered[0].id?.toString() || filtered[0]._id?.toString() || ""
-        }));
+        const firstCategory = filtered[0];
+        const categoryId = firstCategory.id || firstCategory._id || firstCategory.categoryId;
+        
+        if (categoryId) {
+          setFormData(prev => ({
+            ...prev,
+            categoryId: String(categoryId)
+          }));
+        }
       }
     }
   }, [formData.type, categories]);
 
-  const createDefaultCategories = async () => {
-    const defaultCategories = [
-      { name: "Salary", type: "income" },
-      { name: "Business", type: "income" },
-      { name: "Investment", type: "income" },
-      { name: "Food & Dining", type: "expense" },
-      { name: "Shopping", type: "expense" },
-      { name: "Rent", type: "expense" },
-      { name: "Transportation", type: "expense" },
-      { name: "Entertainment", type: "expense" },
-      { name: "Healthcare", type: "expense" },
-      { name: "Education", type: "expense" },
-      { name: "Utilities", type: "expense" },
-      { name: "Other Income", type: "income" },
-      { name: "Other Expense", type: "expense" },
-    ];
-
-    for (const category of defaultCategories) {
-      try {
-        await ApiService.createCategory(category);
-      // eslint-disable-next-line no-unused-vars
-      } catch (e) {
-        // Category exists
-      }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    // CRITICAL FIX: For select elements, get the actual value, not display text
+    if (e.target.tagName === 'SELECT') {
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      const actualValue = selectedOption.value;
+      
+      console.log(`Select changed: ${name} = ${actualValue}`);
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: actualValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
-  };
-
-  // FIX 3: Handle select change properly
-  const handleSelectChange = (e) => {
-    const { name, value } = e.target;
     
-    // FIX: Log what we're getting
-    console.log(`${name} changed to:`, value);
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    setError("");
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
     setError("");
   };
 
@@ -146,14 +124,10 @@ function TransactionForm({ currentUser }) {
     setLoading(true);
     setError("");
 
-    // FIX 4: Debug form data
-    console.log("Form data before submit:", formData);
-    console.log("Accounts:", accounts);
-    console.log("Categories:", categories);
-    console.log("Filtered categories:", filteredCategories);
+    console.log("Current form data:", formData);
 
-    // Validation
-    if (!formData.accountId || formData.accountId.includes("₹")) {
+    // Validate
+    if (!formData.accountId || formData.accountId.includes('₹')) {
       setError("Please select a valid account");
       setLoading(false);
       return;
@@ -171,102 +145,31 @@ function TransactionForm({ currentUser }) {
       return;
     }
 
-    // Find the actual account and category objects
-    const selectedAccount = accounts.find(acc => 
-      acc.id?.toString() === formData.accountId || 
-      acc._id?.toString() === formData.accountId ||
-      acc.accountId?.toString() === formData.accountId
-    );
-
-    const selectedCategory = categories.find(cat => 
-      cat.id?.toString() === formData.categoryId || 
-      cat._id?.toString() === formData.categoryId ||
-      cat.categoryId?.toString() === formData.categoryId
-    );
-
-    console.log("Selected account:", selectedAccount);
-    console.log("Selected category:", selectedCategory);
-
-    if (!selectedAccount) {
-      setError("Invalid account selected");
-      setLoading(false);
-      return;
-    }
-
-    if (!selectedCategory) {
-      setError("Invalid category selected");
-      setLoading(false);
-      return;
-    }
-
     try {
-      // FIX 5: Prepare CORRECT data for backend
+      // Prepare data
       const transactionData = {
         amount: parseFloat(formData.amount),
         type: formData.type,
-        categoryId: selectedCategory.id || selectedCategory._id || selectedCategory.categoryId,
-        accountId: selectedAccount.id || selectedAccount._id || selectedAccount.accountId,
+        categoryId: formData.categoryId,
+        accountId: formData.accountId,
       };
 
-      // Add description if provided
-      if (formData.description && formData.description.trim()) {
+      if (formData.description.trim()) {
         transactionData.description = formData.description.trim();
       }
 
-      console.log("Submitting to backend:", transactionData);
+      console.log("Sending transaction:", transactionData);
 
       const response = await ApiService.createTransaction(transactionData);
-      console.log("Response:", response);
+      console.log("Transaction created:", response);
 
-      // Success - redirect
       navigate("/transactions");
     } catch (err) {
-      console.error("Full error:", err);
-      console.error("Error response:", err.response?.data);
-      
-      let errorMsg = "Failed to save transaction. ";
-      
-      if (err.response?.data?.message) {
-        errorMsg += err.response.data.message;
-      } else if (err.message) {
-        errorMsg += err.message;
-      } else if (err.response?.status === 400) {
-        errorMsg += "Missing required fields. Please check all inputs.";
-      } else {
-        errorMsg += "Please try again.";
-      }
-      
-      setError(errorMsg);
+      console.error("Transaction error:", err);
+      setError(err.message || "Failed to save transaction");
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper functions
-  // eslint-disable-next-line no-unused-vars
-  const getAccountName = () => {
-    if (!formData.accountId || accounts.length === 0) return "";
-    
-    const account = accounts.find(acc => 
-      acc.id?.toString() === formData.accountId || 
-      acc._id?.toString() === formData.accountId ||
-      acc.accountId?.toString() === formData.accountId
-    );
-    
-    return account ? account.name : "";
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const getAccountBalance = () => {
-    if (!formData.accountId || accounts.length === 0) return 0;
-    
-    const account = accounts.find(acc => 
-      acc.id?.toString() === formData.accountId || 
-      acc._id?.toString() === formData.accountId ||
-      acc.accountId?.toString() === formData.accountId
-    );
-    
-    return account ? (account.balance || 0) : 0;
   };
 
   // Loading state
@@ -289,7 +192,7 @@ function TransactionForm({ currentUser }) {
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          {/* FIX 6: Account select with proper value */}
+          {/* Account Select - CRITICAL FIX */}
           <div className="form-group">
             <label htmlFor="accountId" className="form-label">
               Account <span className="required">*</span>
@@ -299,16 +202,18 @@ function TransactionForm({ currentUser }) {
               name="accountId"
               className="form-select"
               value={formData.accountId}
-              onChange={handleSelectChange}
+              onChange={handleChange}
               required
             >
               <option value="">Select Account</option>
               {accounts.map((account) => {
-                // FIX: Use correct ID field
+                // Get the actual ID
                 const accountId = account.id || account._id || account.accountId;
+                const displayText = `${account.name} (₹${(account.balance || 0).toFixed(2)})`;
+                
                 return (
                   <option key={accountId} value={accountId}>
-                    {account.name} (₹{(account.balance || 0).toFixed(2)})
+                    {displayText}
                   </option>
                 );
               })}
@@ -351,7 +256,7 @@ function TransactionForm({ currentUser }) {
               name="amount"
               className="form-input"
               value={formData.amount}
-              onChange={handleInputChange}
+              onChange={handleChange}
               placeholder="0.00"
               step="0.01"
               min="0.01"
@@ -360,7 +265,7 @@ function TransactionForm({ currentUser }) {
             />
           </div>
 
-          {/* FIX 7: Category select with proper value */}
+          {/* Category Select - CRITICAL FIX */}
           <div className="form-group">
             <label htmlFor="categoryId" className="form-label">
               Category <span className="required">*</span>
@@ -370,14 +275,15 @@ function TransactionForm({ currentUser }) {
               name="categoryId"
               className="form-select"
               value={formData.categoryId}
-              onChange={handleSelectChange}
+              onChange={handleChange}
               required
               disabled={filteredCategories.length === 0}
             >
               <option value="">Select Category</option>
               {filteredCategories.map((category) => {
-                // FIX: Use correct ID field
+                // Get the actual ID
                 const categoryId = category.id || category._id || category.categoryId;
+                
                 return (
                   <option key={categoryId} value={categoryId}>
                     {category.name}
@@ -385,11 +291,6 @@ function TransactionForm({ currentUser }) {
                 );
               })}
             </select>
-            {filteredCategories.length === 0 && (
-              <p className="form-help">
-                No categories found for {formData.type}
-              </p>
-            )}
           </div>
 
           {/* Description */}
@@ -402,7 +303,7 @@ function TransactionForm({ currentUser }) {
               name="description"
               className="form-textarea"
               value={formData.description}
-              onChange={handleInputChange}
+              onChange={handleChange}
               placeholder="Add description..."
               rows="3"
               disabled={loading}
@@ -422,7 +323,7 @@ function TransactionForm({ currentUser }) {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={loading || !formData.accountId || !formData.categoryId || !formData.amount}
+              disabled={loading}
             >
               {loading ? "Saving..." : "Add Transaction"}
             </button>
