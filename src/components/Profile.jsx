@@ -1,4 +1,4 @@
-// src/components/Profile.js
+// src/components/Profile.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ApiService from '../services/api';
@@ -6,32 +6,71 @@ import './Profile.css';
 
 function Profile({ currentUser, setCurrentUser }) {
   const [formData, setFormData] = useState({
-    Name: '',
-    LastName: '',
-    Email: '',
-    Mobile_No: '',
-    Password: '',
+    name: '',
+    lastName: '',
+    email: '',
+    mobileNo: '',
+    password: '',
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   
   const navigate = useNavigate();
 
+  // Fix: Load profile data from API
   useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setProfileLoading(true);
+        const profileData = await ApiService.getProfile();
+        console.log('Profile data received:', profileData);
+        
+        // Update current user with fresh data
+        const updatedUser = {
+          ...currentUser,
+          ...profileData.user,
+          ...profileData
+        };
+        
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        
+        // Set form data
+        setFormData({
+          name: updatedUser.name || updatedUser.Name || '',
+          lastName: updatedUser.lastName || updatedUser.LastName || '',
+          email: updatedUser.email || updatedUser.Email || '',
+          mobileNo: updatedUser.mobileNo || updatedUser.Mobile_No || '',
+          password: '',
+          confirmPassword: ''
+        });
+        
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+        // If API fails, use localStorage data
+        if (currentUser) {
+          setFormData({
+            name: currentUser.name || currentUser.Name || '',
+            lastName: currentUser.lastName || currentUser.LastName || '',
+            email: currentUser.email || currentUser.Email || '',
+            mobileNo: currentUser.mobileNo || currentUser.Mobile_No || '',
+            password: '',
+            confirmPassword: ''
+          });
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
     if (currentUser) {
-      setFormData({
-        Name: currentUser.Name || '',
-        LastName: currentUser.LastName || '',
-        Email: currentUser.Email || '',
-        Mobile_No: currentUser.Mobile_No || '',
-        Password: '',
-        confirmPassword: ''
-      });
+      loadProfile();
     }
-  }, [currentUser]);
+  }, [currentUser, setCurrentUser]);
 
   const handleChange = (e) => {
     setFormData({
@@ -43,63 +82,88 @@ function Profile({ currentUser, setCurrentUser }) {
   };
 
   const handleUpdate = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-  setSuccess('');
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
 
-  // Validate
-  if (formData.Password && formData.Password !== formData.confirmPassword) {
-    setError('Passwords do not match');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    const updates = {
-      name: formData.Name,  // CHANGED: Name → name (lowercase)
-      lastName: formData.LastName,  // CHANGED: LastName → lastName
-      email: formData.Email,  // CHANGED: Email → email
-      mobileNo: formData.Mobile_No  // CHANGED: Mobile_No → mobileNo
-    };
-
-    // Add password only if provided
-    if (formData.Password) {
-      updates.password = formData.Password;  // lowercase
+    // Validate
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
     }
 
-    // REMOVE: currentUser.id parameter
-    // eslint-disable-next-line no-unused-vars
-    const data = await ApiService.updateProfile(updates);
-    
-    // Update current user in localStorage and state
-    const updatedUser = { ...currentUser, ...updates };
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-    setCurrentUser(updatedUser);
-    
-    setSuccess('Profile updated successfully!');
-    setIsEditing(false);
-    setFormData(prev => ({ ...prev, Password: '', confirmPassword: '' }));
-  } catch (err) {
-    setError(err.message || 'Failed to update profile');
-  } finally {
-    setLoading(false);
-  }
-};
-
- const handleDelete = async () => {
-  if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
     try {
-      // REMOVE: currentUser.id parameter
-      await ApiService.deleteProfile();
-      localStorage.clear();
-      navigate('/');
-      window.location.reload();
+      const updates = {
+        name: formData.name,
+        lastName: formData.lastName,
+        email: formData.email,
+        mobileNo: formData.mobileNo
+      };
+
+      // Add password only if provided
+      if (formData.password) {
+        updates.password = formData.password;
+      }
+
+      console.log('Updating profile with:', updates);
+      const data = await ApiService.updateProfile(updates);
+      console.log('Profile update response:', data);
+      
+      // Update current user
+      const updatedUser = { 
+        ...currentUser, 
+        ...updates,
+        ...(data.user || data)
+      };
+      
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+      
+      // Update form data (clear passwords)
+      setFormData(prev => ({ 
+        ...prev, 
+        password: '', 
+        confirmPassword: '',
+        name: updatedUser.name || updatedUser.Name || '',
+        lastName: updatedUser.lastName || updatedUser.LastName || '',
+        email: updatedUser.email || updatedUser.Email || '',
+        mobileNo: updatedUser.mobileNo || updatedUser.Mobile_No || ''
+      }));
+      
+      setSuccess('Profile updated successfully!');
+      setIsEditing(false);
+      
     } catch (err) {
-      setError('Failed to delete account: ' + err.message);
+      console.error('Update error:', err);
+      setError(err.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      try {
+        await ApiService.deleteProfile();
+        localStorage.clear();
+        navigate('/');
+        window.location.reload();
+      } catch (err) {
+        setError('Failed to delete account: ' + err.message);
+      }
+    }
+  };
+
+  if (profileLoading) {
+    return (
+      <div className="profile-page">
+        <div className="loading-spinner"></div>
+        <p>Loading profile...</p>
+      </div>
+    );
   }
-};
 
   return (
     <div className="profile-page">
@@ -117,17 +181,19 @@ function Profile({ currentUser, setCurrentUser }) {
             <button
               onClick={() => {
                 setIsEditing(false);
-                // Reset form
+                // Reset form to current user data
                 if (currentUser) {
                   setFormData({
-                    Name: currentUser.Name || '',
-                    LastName: currentUser.LastName || '',
-                    Email: currentUser.Email || '',
-                    Mobile_No: currentUser.Mobile_No || '',
-                    Password: '',
+                    name: currentUser.name || currentUser.Name || '',
+                    lastName: currentUser.lastName || currentUser.LastName || '',
+                    email: currentUser.email || currentUser.Email || '',
+                    mobileNo: currentUser.mobileNo || currentUser.Mobile_No || '',
+                    password: '',
                     confirmPassword: ''
                   });
                 }
+                setError('');
+                setSuccess('');
               }}
               className="btn btn-outline"
             >
@@ -159,9 +225,9 @@ function Profile({ currentUser, setCurrentUser }) {
                 <label className="form-label">First Name</label>
                 <input
                   type="text"
-                  name="Name"
+                  name="name"
                   className="form-input"
-                  value={formData.Name}
+                  value={formData.name}
                   onChange={handleChange}
                   disabled={!isEditing}
                 />
@@ -171,9 +237,9 @@ function Profile({ currentUser, setCurrentUser }) {
                 <label className="form-label">Last Name</label>
                 <input
                   type="text"
-                  name="LastName"
+                  name="lastName"
                   className="form-input"
-                  value={formData.LastName}
+                  value={formData.lastName}
                   onChange={handleChange}
                   disabled={!isEditing}
                 />
@@ -184,9 +250,9 @@ function Profile({ currentUser, setCurrentUser }) {
               <label className="form-label">Email</label>
               <input
                 type="email"
-                name="Email"
+                name="email"
                 className="form-input"
-                value={formData.Email}
+                value={formData.email}
                 onChange={handleChange}
                 disabled={!isEditing}
               />
@@ -196,9 +262,9 @@ function Profile({ currentUser, setCurrentUser }) {
               <label className="form-label">Mobile Number</label>
               <input
                 type="tel"
-                name="Mobile_No"
+                name="mobileNo"
                 className="form-input"
-                value={formData.Mobile_No}
+                value={formData.mobileNo}
                 onChange={handleChange}
                 disabled={!isEditing}
               />
@@ -213,9 +279,9 @@ function Profile({ currentUser, setCurrentUser }) {
                 <label className="form-label">New Password</label>
                 <input
                   type="password"
-                  name="Password"
+                  name="password"
                   className="form-input"
-                  value={formData.Password}
+                  value={formData.password}
                   onChange={handleChange}
                   placeholder="Leave blank to keep current password"
                 />
