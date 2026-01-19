@@ -1,4 +1,3 @@
-// src/services/api.js - UPDATED FOR MONGODB
 const API_BASE_URL = import.meta.env.PROD 
   ? 'https://finance-backend-jtpz.onrender.com/api'
   : 'http://localhost:3000/api';
@@ -23,11 +22,18 @@ class ApiService {
 
     const config = {
       headers,
-      ...options,
+      method: options.method,
     };
 
-    if (options.body) {
-      config.body = JSON.stringify(options.body);
+    // Smart body handling
+    if (options.body !== undefined) {
+      config.body = typeof options.body === 'string' 
+        ? options.body 
+        : JSON.stringify(options.body);
+      
+      console.log('📦 Request Body:', typeof config.body === 'string' 
+        ? config.body.substring(0, 100) 
+        : config.body);
     }
 
     try {
@@ -44,7 +50,6 @@ class ApiService {
       console.log('📨 API Response:', response.status, data);
 
       if (!response.ok) {
-        // Handle authentication errors
         if (response.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('currentUser');
@@ -117,7 +122,8 @@ class ApiService {
 
   static async getAccounts() {
     const data = await this.request('/accounts');
-    return data.accounts;
+    // Check response structure
+    return data.accounts || data;  // ✅ Both cases handled
   }
 
   static async getAccountById(accountId) {
@@ -166,14 +172,11 @@ class ApiService {
     });
   }
 
-  // Transaction APIs
-  static async createTransaction(accountId, transactionData) {
+  // Transaction APIs - UPDATED
+  static async createTransaction(transactionData) {
     return this.request('/transactions', {
       method: 'POST',
-      body: {
-        ...transactionData,
-        accountId,
-      },
+      body: transactionData,  // ✅ transactionData already has accountId
     });
   }
 

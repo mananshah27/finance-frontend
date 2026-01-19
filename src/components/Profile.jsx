@@ -43,63 +43,63 @@ function Profile({ currentUser, setCurrentUser }) {
   };
 
   const handleUpdate = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    // Validate
-    if (formData.Password && formData.Password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
+  // Validate
+  if (formData.Password && formData.Password !== formData.confirmPassword) {
+    setError('Passwords do not match');
+    setLoading(false);
+    return;
+  }
+
+  try {
+    const updates = {
+      name: formData.Name,  // CHANGED: Name → name (lowercase)
+      lastName: formData.LastName,  // CHANGED: LastName → lastName
+      email: formData.Email,  // CHANGED: Email → email
+      mobileNo: formData.Mobile_No  // CHANGED: Mobile_No → mobileNo
+    };
+
+    // Add password only if provided
+    if (formData.Password) {
+      updates.password = formData.Password;  // lowercase
     }
 
+    // REMOVE: currentUser.id parameter
+    // eslint-disable-next-line no-unused-vars
+    const data = await ApiService.updateProfile(updates);
+    
+    // Update current user in localStorage and state
+    const updatedUser = { ...currentUser, ...updates };
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    setCurrentUser(updatedUser);
+    
+    setSuccess('Profile updated successfully!');
+    setIsEditing(false);
+    setFormData(prev => ({ ...prev, Password: '', confirmPassword: '' }));
+  } catch (err) {
+    setError(err.message || 'Failed to update profile');
+  } finally {
+    setLoading(false);
+  }
+};
+
+ const handleDelete = async () => {
+  if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
     try {
-      const updates = {
-        Name: formData.Name,
-        LastName: formData.LastName,
-        Email: formData.Email,
-        Mobile_No: formData.Mobile_No
-      };
-
-      // Note: Your backend doesn't have password update in profile
-      // Add password only if provided
-      if (formData.Password) {
-        updates.Password = formData.Password;
-      }
-
-      // eslint-disable-next-line no-unused-vars
-      const data = await ApiService.updateProfile(currentUser.id, updates);
-      
-      // Update current user in localStorage and state
-      const updatedUser = { ...currentUser, ...updates };
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      setCurrentUser(updatedUser);
-      
-      setSuccess('Profile updated successfully!');
-      setIsEditing(false);
-      setFormData(prev => ({ ...prev, Password: '', confirmPassword: '' }));
+      // REMOVE: currentUser.id parameter
+      await ApiService.deleteProfile();
+      localStorage.clear();
+      navigate('/');
+      window.location.reload();
     } catch (err) {
-      setError(err.message || 'Failed to update profile');
-    } finally {
-      setLoading(false);
+      setError('Failed to delete account: ' + err.message);
     }
-  };
-
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      try {
-        await ApiService.deleteProfile(currentUser.id);
-        localStorage.clear();
-        navigate('/');
-        window.location.reload();
-      // eslint-disable-next-line no-unused-vars
-      } catch (err) {
-        setError('Failed to delete account');
-      }
-    }
-  };
+  }
+};
 
   return (
     <div className="profile-page">

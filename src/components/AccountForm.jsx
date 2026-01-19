@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ApiService from '../services/api';
 import './AccountForm.css';
 
+// eslint-disable-next-line no-unused-vars
 function AccountForm({ currentUser }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -25,18 +26,18 @@ function AccountForm({ currentUser }) {
   }, [id]);
 
   const fetchAccountDetails = async () => {
-    try {
-      const data = await ApiService.getAccountById(currentUser.id, id);
-      setFormData({
-        name: data.accountRecord.name,
-        type: data.accountRecord.type,
-        initialbalance: data.accountRecord.balance.toString()
-      });
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      setError('Failed to fetch account details');
-    }
-  };
+  try {
+    // REMOVE: currentUser.id parameter
+    const data = await ApiService.getAccountById(id);
+    setFormData({
+      name: data.account.name,  // CHANGED: accountRecord → account
+      type: data.account.type,
+      initialbalance: data.account.balance.toString()
+    });
+  } catch (err) {
+    setError('Failed to fetch account details: ' + err.message);
+  }
+};
 
   const handleChange = (e) => {
     setFormData({
@@ -46,31 +47,34 @@ function AccountForm({ currentUser }) {
     setError('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      const accountData = {
-        name: formData.name,
-        type: formData.type,
-        initialbalance: parseFloat(formData.initialbalance) || 0
-      };
+  try {
+    // CHANGED: initialbalance → balance
+    const accountData = {
+      name: formData.name,
+      type: formData.type,
+      balance: parseFloat(formData.initialbalance) || 0  // FIELD NAME CHANGE
+    };
 
-      if (isEdit) {
-        await ApiService.updateAccount(currentUser.id, id, accountData);
-      } else {
-        await ApiService.createAccount(currentUser.id, accountData);
-      }
-      
-      navigate('/accounts');
-    } catch (err) {
-      setError(err.message || 'Failed to save account');
-    } finally {
-      setLoading(false);
+    if (isEdit) {
+      // REMOVE: currentUser.id parameter
+      await ApiService.updateAccount(id, accountData);
+    } else {
+      // REMOVE: currentUser.id parameter
+      await ApiService.createAccount(accountData);
     }
-  };
+    
+    navigate('/accounts');
+  } catch (err) {
+    setError(err.message || 'Failed to save account');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="form-page">

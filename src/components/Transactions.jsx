@@ -36,47 +36,45 @@ function Transactions({ currentUser }) {
   }, [selectedAccount, filters]);
 
   const fetchAccounts = async () => {
-    try {
-      const data = await ApiService.getAllAccounts();
-      const userAccounts = data.accounts.filter(acc => acc.userId === currentUser.id);
-      setAccounts(userAccounts);
-      
-      if (userAccounts.length > 0 && !selectedAccount) {
-        setSelectedAccount(userAccounts[0].accountId.toString());
-      }
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      setError('Failed to fetch accounts');
+  try {
+    // REMOVE: getAllAccounts, use getAccounts
+    const userAccounts = await ApiService.getAccounts();
+    setAccounts(userAccounts);
+    
+    if (userAccounts.length > 0 && !selectedAccount) {
+      setSelectedAccount(userAccounts[0]._id.toString());  // CHANGED: accountId → _id
     }
-  };
+  } catch (err) {
+    setError('Failed to fetch accounts: ' + err.message);
+  }
+};
 
   const fetchCategories = async () => {
-    try {
-      const data = await ApiService.getCategories(currentUser.id);
-      setCategories(data);
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      console.error('Failed to fetch categories');
-    }
-  };
+  try {
+    // REMOVE: currentUser.id parameter
+    const data = await ApiService.getCategories();
+    setCategories(data);
+  } catch (err) {
+    console.error('Failed to fetch categories:', err);
+  }
+};
 
   const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      const data = await ApiService.getTransactions(
-        currentUser.id, 
-        selectedAccount, 
-        filters
-      );
-      setTransactions(data.transactions || []);
-    } catch (err) {
-      console.error('Failed to fetch transactions:', err);
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  setLoading(true);
+  try {
+    // REMOVE: currentUser.id parameter
+    const data = await ApiService.getTransactions(
+      selectedAccount,  // Only accountId needed
+      filters
+    );
+    setTransactions(data.transactions || []);
+  } catch (err) {
+    console.error('Failed to fetch transactions:', err);
+    setTransactions([]);
+  } finally {
+    setLoading(false);
+  }
+};
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({
@@ -86,16 +84,16 @@ function Transactions({ currentUser }) {
   };
 
   const handleDelete = async (transactionId) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
-      try {
-        await ApiService.deleteTransaction(currentUser.id, selectedAccount, transactionId);
-        fetchTransactions();
-      // eslint-disable-next-line no-unused-vars
-      } catch (err) {
-        setError('Failed to delete transaction');
-      }
+  if (window.confirm('Are you sure you want to delete this transaction?')) {
+    try {
+      // REMOVE: currentUser.id parameter
+      await ApiService.deleteTransaction(transactionId, selectedAccount);
+      fetchTransactions();
+    } catch (err) {
+      setError('Failed to delete transaction: ' + err.message);
     }
-  };
+  }
+};
 
   const clearFilters = () => {
     setFilters({

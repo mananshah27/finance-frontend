@@ -25,17 +25,18 @@ function Categories({ currentUser }) {
     }
   };
 
-  const handleDelete = async (categoryId) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        await ApiService.deleteCategory(currentUser.id, categoryId);
-        fetchCategories();
-      // eslint-disable-next-line no-unused-vars
-      } catch (err) {
-        setError('Failed to delete category');
-      }
+  // Line 48-52 UPDATE handleDelete:
+const handleDelete = async (categoryId) => {
+  if (window.confirm('Are you sure you want to delete this category?')) {
+    try {
+      // REMOVE: currentUser.id parameter
+      await ApiService.deleteCategory(categoryId);
+      fetchCategories();
+    } catch (err) {
+      setError('Failed to delete category: ' + err.message);
     }
-  };
+  }
+};
 
   if (loading) {
     return <div className="loading">Loading categories...</div>;

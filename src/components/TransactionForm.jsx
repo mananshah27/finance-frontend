@@ -62,16 +62,15 @@ function TransactionForm({ currentUser }) {
   };
 
   const fetchCategories = async () => {
-    try {
-      const data = await ApiService.getCategories(currentUser.id);
-      setCategories(data);
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      console.error('Failed to fetch categories');
-      // If no categories, create default ones
-      createDefaultCategories();
-    }
-  };
+  try {
+    // REMOVE: currentUser.id parameter
+    const data = await ApiService.getCategories();
+    setCategories(data);
+  } catch (err) {
+    console.error('Failed to fetch categories:', err);
+    createDefaultCategories();
+  }
+};
 
   const createDefaultCategories = async () => {
     try {
@@ -93,7 +92,7 @@ function TransactionForm({ currentUser }) {
 
       for (const category of defaultCategories) {
         try {
-          await ApiService.createCategory(currentUser.id, category);
+          await ApiService.createCategory(category);
         // eslint-disable-next-line no-unused-vars
         } catch (e) {
           // Category might already exist
@@ -101,7 +100,7 @@ function TransactionForm({ currentUser }) {
       }
 
       // Refresh categories
-      const data = await ApiService.getCategories(currentUser.id);
+      const data = await ApiService.getCategories();
       setCategories(data);
     // eslint-disable-next-line no-unused-vars
     } catch (err) {
@@ -141,25 +140,19 @@ function TransactionForm({ currentUser }) {
       const transactionData = {
         amount: amount,
         type: formData.type,
-        categoryId: parseInt(formData.categoryId)
+        categoryId: parseInt(formData.categoryId),
+        accountId: formData.accountId
       };
 
       // Add description if provided
       if (formData.description.trim()) {
         transactionData.description = formData.description.trim();
       }
+       console.log('Submitting transaction:', transactionData);
 
-      console.log('Submitting transaction:', {
-        userId: currentUser.id,
-        accountId: formData.accountId,
-        transactionData
-      });
+      
 
-      const response = await ApiService.createTransaction(
-        currentUser.id, 
-        formData.accountId, 
-        transactionData
-      );
+      const response = await ApiService.createTransaction(transactionData);
 
       console.log('Transaction created:', response);
       

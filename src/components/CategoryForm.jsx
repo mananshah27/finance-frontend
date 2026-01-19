@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ApiService from '../services/api';
 import './CategoryForm.css';
 
+// eslint-disable-next-line no-unused-vars
 function CategoryForm({ currentUser }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -24,18 +25,17 @@ function CategoryForm({ currentUser }) {
   }, [id]);
 
   const fetchCategoryDetails = async () => {
-    try {
-      const data = await ApiService.getCategoryById(currentUser.id, id);
-      setFormData({
-        name: data.name,
-        type: data.type
-      });
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      setError('Failed to fetch category details');
-    }
-  };
-
+  try {
+    // REMOVE: currentUser.id parameter
+    const data = await ApiService.getCategoryById(id);
+    setFormData({
+      name: data.name,
+      type: data.type
+    });
+  } catch (err) {
+    setError('Failed to fetch category details: ' + err.message);
+  }
+};
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -45,31 +45,32 @@ function CategoryForm({ currentUser }) {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    if (!formData.name.trim() || !formData.type) {
-      setError('Please fill all required fields');
-      setLoading(false);
-      return;
+  if (!formData.name.trim() || !formData.type) {
+    setError('Please fill all required fields');
+    setLoading(false);
+    return;
+  }
+
+  try {
+    if (isEdit) {
+      // REMOVE: currentUser.id parameter
+      await ApiService.updateCategory(id, formData);
+    } else {
+      // REMOVE: currentUser.id parameter
+      await ApiService.createCategory(formData);
     }
-
-    try {
-      if (isEdit) {
-        await ApiService.updateCategory(currentUser.id, id, formData);
-      } else {
-        await ApiService.createCategory(currentUser.id, formData);
-      }
-      
-      navigate('/categories');
-    } catch (err) {
-      setError(err.message || 'Failed to save category');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    
+    navigate('/categories');
+  } catch (err) {
+    setError(err.message || 'Failed to save category');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="form-page">
       <div className="form-card">

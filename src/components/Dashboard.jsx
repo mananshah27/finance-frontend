@@ -19,46 +19,48 @@ function Dashboard({ currentUser }) {
     fetchDashboardData();
   }, [currentUser]);
 
-  const fetchDashboardData = async () => {
-    try {
-      // Fetch accounts
-      const userAccounts = await ApiService.getAccounts();
-      
-      // Fetch recent transactions
-      let allTransactions = [];
-      for (const account of userAccounts) {
-        try {
-          const transData = await ApiService.getTransactions(currentUser.id, account.accountId, {});
-          allTransactions = [...allTransactions, ...transData.transactions];
-        // eslint-disable-next-line no-unused-vars
-        } catch (err) {
-          console.log(`No transactions for account ${account.accountId}`);
-        }
+  // Line 25-35 UPDATE fetchDashboardData:
+const fetchDashboardData = async () => {
+  try {
+    // Fetch accounts
+    const userAccounts = await ApiService.getAccounts();
+    
+    // Fetch recent transactions
+    let allTransactions = [];
+    for (const account of userAccounts) {
+      try {
+        // REMOVE: currentUser.id parameter
+        const transData = await ApiService.getTransactions(account._id, {});  // CHANGED: accountId → _id
+        allTransactions = [...allTransactions, ...transData.transactions];
+      // eslint-disable-next-line no-unused-vars
+      } catch (err) {
+        console.log(`No transactions for account ${account._id}`);
       }
-      
-      // Calculate stats
-      const totalBalance = userAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-      const totalIncome = allTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-      const totalExpense = allTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      setAccounts(userAccounts);
-      setTransactions(allTransactions.slice(0, 5)); // Show only 5 recent
-      setStats({
-        totalBalance,
-        totalAccounts: userAccounts.length,
-        totalIncome,
-        totalExpense
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+    
+    // Calculate stats
+    const totalBalance = userAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+    const totalIncome = allTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = allTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    setAccounts(userAccounts);
+    setTransactions(allTransactions.slice(0, 5));
+    setStats({
+      totalBalance,
+      totalAccounts: userAccounts.length,
+      totalIncome,
+      totalExpense
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return <div className="loading">Loading dashboard...</div>;

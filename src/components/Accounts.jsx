@@ -1,13 +1,13 @@
 // src/components/Accounts.js
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import ApiService from '../services/api';
-import './Accounts.css';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import ApiService from "../services/api";
+import "./Accounts.css";
 
 function Accounts({ currentUser }) {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetchAccounts();
@@ -16,24 +16,25 @@ function Accounts({ currentUser }) {
   const fetchAccounts = async () => {
     try {
       const userAccounts = await ApiService.getAccounts();
-      
+
       setAccounts(userAccounts);
     } catch (err) {
-      setError('Failed to fetch accounts');
+      setError("Failed to fetch accounts");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Line 48-52 UPDATE handleDelete:
   const handleDelete = async (accountId) => {
-    if (window.confirm('Are you sure you want to delete this account?')) {
+    if (window.confirm("Are you sure you want to delete this account?")) {
       try {
-        await ApiService.deleteAccount(currentUser.id, accountId);
+        // REMOVE: currentUser.id parameter
+        await ApiService.deleteAccount(accountId);
         fetchAccounts();
-      // eslint-disable-next-line no-unused-vars
       } catch (err) {
-        setError('Failed to delete account');
+        setError("Failed to delete account: " + err.message);
       }
     }
   };
@@ -51,11 +52,7 @@ function Accounts({ currentUser }) {
         </Link>
       </div>
 
-      {error && (
-        <div className="alert alert-error">
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error">{error}</div>}
 
       {accounts.length === 0 ? (
         <div className="empty-state">
@@ -66,7 +63,7 @@ function Accounts({ currentUser }) {
         </div>
       ) : (
         <div className="accounts-list">
-          {accounts.map(account => (
+          {accounts.map((account) => (
             <div key={account.accountId} className="account-item">
               <div className="account-info">
                 <div className="account-main">
@@ -81,13 +78,13 @@ function Accounts({ currentUser }) {
                 </p>
               </div>
               <div className="account-actions">
-                <Link 
+                <Link
                   to={`/transactions?account=${account.accountId}`}
                   className="btn btn-sm btn-outline"
                 >
                   View Transactions
                 </Link>
-                <Link 
+                <Link
                   to={`/accounts/edit/${account.accountId}`}
                   className="btn btn-sm btn-outline"
                 >
@@ -106,8 +103,13 @@ function Accounts({ currentUser }) {
       )}
 
       <div className="total-summary">
-        <h3>Total Balance: ₹{accounts.reduce((sum, acc) => sum + acc.balance, 0).toFixed(2)}</h3>
-        <p>{accounts.length} account{accounts.length !== 1 ? 's' : ''} found</p>
+        <h3>
+          Total Balance: ₹
+          {accounts.reduce((sum, acc) => sum + acc.balance, 0).toFixed(2)}
+        </h3>
+        <p>
+          {accounts.length} account{accounts.length !== 1 ? "s" : ""} found
+        </p>
       </div>
     </div>
   );
