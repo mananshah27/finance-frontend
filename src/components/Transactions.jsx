@@ -1,4 +1,4 @@
-// src/components/Transactions.jsx - FIXED VERSION
+// src/components/Transactions.jsx - UPDATED WITH FIXES
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ApiService from '../services/api';
@@ -59,6 +59,8 @@ function Transactions({ currentUser }) {
     } catch (err) {
       console.error('Failed to fetch accounts:', err);
       setError('Failed to fetch accounts: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,8 +93,22 @@ function Transactions({ currentUser }) {
       const data = await ApiService.getTransactions(selectedAccount, filters);
       console.log('Transactions received:', data);
       
-      // Handle different response formats
-      const transactionsArray = Array.isArray(data) ? data : [];
+      // Handle different response formats - FIXED HERE
+      let transactionsArray = [];
+      
+      if (Array.isArray(data)) {
+        transactionsArray = data;
+      } else if (data && Array.isArray(data.transactions)) {
+        transactionsArray = data.transactions;
+      } else if (data && data.message === "No transactions found") {
+        transactionsArray = [];
+      }
+      
+      // Debug: Log each transaction
+      transactionsArray.forEach((t, i) => {
+        console.log(`Transaction ${i}:`, t);
+      });
+      
       setTransactions(transactionsArray);
       
     } catch (err) {
@@ -104,7 +120,6 @@ function Transactions({ currentUser }) {
       }
     } finally {
       setAccountLoading(false);
-      setLoading(false);
     }
   };
 
@@ -141,9 +156,9 @@ function Transactions({ currentUser }) {
     if (!categoryId) return 'Unknown';
     
     const category = categories.find(c => 
-      c.id === categoryId || 
-      c._id === categoryId || 
-      c.categoryId === categoryId
+      String(c.id) === String(categoryId) || 
+      String(c._id) === String(categoryId) || 
+      String(c.categoryId) === String(categoryId)
     );
     return category ? category.name : 'Unknown';
   };
@@ -169,7 +184,7 @@ function Transactions({ currentUser }) {
       String(a._id) === selectedAccount || 
       String(a.accountId) === selectedAccount
     );
-    return account ? (account.balance || 0) : 0;
+    return account ? (parseFloat(account.balance) || 0) : 0;
   };
 
   // Fix: Get account ID for display
@@ -180,6 +195,45 @@ function Transactions({ currentUser }) {
   // Fix: Get transaction ID
   const getTransactionId = (transaction) => {
     return transaction.id || transaction._id || transaction.transactionId;
+  };
+
+  // NEW: Fix for transaction type display - ADD THIS FUNCTION
+  const getTransactionTypeDisplay = (transaction) => {
+    if (!transaction) return { className: 'unknown', text: 'Unknown' };
+    
+    const type = transaction.type || '';
+    if (type.toLowerCase() === 'income') {
+      return { className: 'income', text: 'Income' };
+    } else if (type.toLowerCase() === 'expense') {
+      return { className: 'expense', text: 'Expense' };
+    } else {
+      return { className: 'unknown', text: type || 'Unknown' };
+    }
+  };
+
+  // NEW: Fix for amount display - ADD THIS FUNCTION
+  const getAmountDisplay = (transaction) => {
+    if (!transaction) return { sign: '', amount: '0.00', className: 'unknown' };
+    
+    const type = transaction.type || '';
+    const amount = parseFloat(transaction.amount) || 0;
+    
+    let sign = '';
+    let className = 'unknown';
+    
+    if (type.toLowerCase() === 'income') {
+      sign = '+';
+      className = 'income';
+    } else if (type.toLowerCase() === 'expense') {
+      sign = '-';
+      className = 'expense';
+    }
+    
+    return { 
+      sign, 
+      amount: amount.toFixed(2), 
+      className 
+    };
   };
 
   if (loading && accounts.length === 0) {
@@ -223,7 +277,7 @@ function Transactions({ currentUser }) {
                   const accountId = getAccountIdForDisplay(account);
                   return (
                     <option key={accountId} value={accountId}>
-                      {account.name} (₹{(account.balance || 0).toFixed(2)})
+                      {account.name} (₹{(parseFloat(account.balance) || 0).toFixed(2)})
                     </option>
                   );
                 })}
@@ -257,7 +311,7 @@ function Transactions({ currentUser }) {
                   const categoryId = category.id || category._id || category.categoryId;
                   return (
                     <option key={categoryId} value={categoryId}>
-                      {category.name} ({category.type})
+                      {category.name} ({category.type || 'unknown'})
                     </option>
                   );
                 })}
@@ -339,25 +393,31 @@ function Transactions({ currentUser }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map(transaction => {
+                  {transactions.map((transaction, index) => {
                     const transactionId = getTransactionId(transaction);
+                    const typeDisplay = getTransactionTypeDisplay(transaction); // USE NEW FUNCTION
+                    const amountDisplay = getAmountDisplay(transaction); // USE NEW FUNCTION
+                    
                     return (
-                      <tr key={transactionId}>
+                      <tr key={transactionId || index}>
                         <td>
                           {transaction.createdAt 
                             ? new Date(transaction.createdAt).toLocaleDateString()
-                            : new Date(transaction.date).toLocaleDateString() || 'N/A'}
+                            : (transaction.date 
+                              ? new Date(transaction.date).toLocaleDateString()
+                              : 'N/A')}
                         </td>
                         <td>
-                          <span className={`transaction-type ${transaction.type}`}>
-                            {transaction.type}
+                          {/* FIXED: Use new function for type display */}
+                          <span className={`transaction-type ${typeDisplay.className}`}>
+                            {typeDisplay.text}
                           </span>
                         </td>
                         <td>{getCategoryName(transaction.categoryId)}</td>
                         <td>{transaction.description || '-'}</td>
-                        <td className={`amount ${transaction.type}`}>
-                          {transaction.type === 'income' ? '+' : '-'}₹
-                          {transaction.amount?.toFixed(2) || '0.00'}
+                        <td className={`amount ${amountDisplay.className}`}>
+                          {/* FIXED: Use new function for amount display */}
+                          {amountDisplay.sign}₹{amountDisplay.amount}
                         </td>
                         <td>
                           <div className="action-buttons">
@@ -385,24 +445,25 @@ function Transactions({ currentUser }) {
                 <p>
                   <strong>Total Income:</strong> ₹{
                     transactions
-                      .filter(t => t.type === 'income')
-                      .reduce((sum, t) => sum + (t.amount || 0), 0)
+                      .filter(t => t.type && t.type.toLowerCase() === 'income')
+                      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
                       .toFixed(2)
                   }
                 </p>
                 <p>
                   <strong>Total Expense:</strong> ₹{
                     transactions
-                      .filter(t => t.type === 'expense')
-                      .reduce((sum, t) => sum + (t.amount || 0), 0)
+                      .filter(t => t.type && t.type.toLowerCase() === 'expense')
+                      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
                       .toFixed(2)
                   }
                 </p>
                 <p>
                   <strong>Net Balance:</strong> ₹{
                     transactions.reduce((sum, t) => {
-                      const amount = t.amount || 0;
-                      return t.type === 'income' ? sum + amount : sum - amount;
+                      const amount = parseFloat(t.amount) || 0;
+                      const type = t.type ? t.type.toLowerCase() : '';
+                      return type === 'income' ? sum + amount : sum - amount;
                     }, 0).toFixed(2)
                   }
                 </p>
