@@ -167,26 +167,53 @@ class ApiService {
 
   // Category APIs
   static async createCategory(categoryData) {
+    console.log("Creating category:", categoryData);
+
+    // Ensure proper data format
+    const cleanData = {
+      name: String(categoryData.name).trim(),
+      type: String(categoryData.type).toLowerCase(),
+    };
+
     return this.request("/categories", {
       method: "POST",
-      body: categoryData,
+      body: cleanData,
     });
   }
 
   static async getCategories() {
     const data = await this.request("/categories");
-    console.log("Categories data received:", data);
-    return data.categories || data || [];
+    console.log("Categories API response:", data);
+
+    // Handle different response formats
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.categories)) {
+      return data.categories;
+    } else if (data && data.message === "No categories found") {
+      return [];
+    } else {
+      return data || [];
+    }
   }
 
   static async getCategoryById(categoryId) {
+    console.log("Fetching category by ID:", categoryId);
     return this.request(`/categories/${categoryId}`);
   }
 
   static async updateCategory(categoryId, updates) {
+    console.log("Updating category:", categoryId, updates);
+
+    // Ensure proper data format
+    const cleanData = {
+      name: String(updates.name).trim(),
+      type: String(updates.type).toLowerCase(),
+    };
+
     return this.request(`/categories/${categoryId}`, {
       method: "PUT",
-      body: updates,
+      body: cleanData,
     });
   }
 
@@ -197,36 +224,19 @@ class ApiService {
   }
 
   // Transaction APIs - CRITICAL FIXES
+  // ApiService.js mein createTransaction function update karein:
+  // Transaction APIs - FIXED
   static async createTransaction(transactionData) {
-    console.log("Creating transaction with data:", transactionData);
+    console.log("📝 Creating transaction with data:", transactionData);
 
-    // FIX 1: Validate data before sending
-    if (!transactionData.accountId || transactionData.accountId.includes("₹")) {
-      throw new Error("Invalid account ID");
-    }
-
+    // Simple validation
     if (!transactionData.categoryId) {
       throw new Error("Category ID is required");
     }
 
-    // FIX 2: Ensure proper data types
-    const cleanData = {
-      amount: parseFloat(transactionData.amount),
-      type: transactionData.type,
-      categoryId: String(transactionData.categoryId).trim(),
-      accountId: String(transactionData.accountId).trim(),
-    };
-
-    // Add optional fields
-    if (transactionData.description) {
-      cleanData.description = String(transactionData.description).trim();
-    }
-
-    console.log("Sending cleaned transaction data:", cleanData);
-
     return this.request("/transactions", {
       method: "POST",
-      body: cleanData,
+      body: transactionData,
     });
   }
 
@@ -244,7 +254,18 @@ class ApiService {
     console.log("Fetching transactions with params:", queryParams);
 
     const data = await this.request(`/transactions?${queryParams}`);
-    return data.transactions || data || [];
+
+    // DEBUG: Log the response structure
+    console.log("📊 Transactions API response:", data);
+
+    // Return transactions array
+    if (data && data.transactions) {
+      return data.transactions;
+    } else if (Array.isArray(data)) {
+      return data;
+    } else {
+      return [];
+    }
   }
 
   static async getTransactionById(transactionId, accountId) {

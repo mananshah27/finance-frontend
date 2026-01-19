@@ -1,4 +1,4 @@
-// Dashboard.jsx - FIXED VERSION
+// Dashboard.jsx - UPDATED VERSION
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ApiService from '../services/api';
@@ -21,11 +21,11 @@ function Dashboard({ currentUser }) {
 
   const fetchDashboardData = async () => {
     try {
-      console.log('Fetching dashboard data...');
+      console.log('🔄 Fetching dashboard data...');
       
       // 1. Fetch accounts
       const accountsData = await ApiService.getAccounts();
-      console.log('Accounts data:', accountsData);
+      console.log('📊 Accounts data:', accountsData);
       
       const accountsArray = Array.isArray(accountsData) 
         ? accountsData 
@@ -33,45 +33,74 @@ function Dashboard({ currentUser }) {
       
       setAccounts(accountsArray);
       
-      // 2. Fetch recent transactions
+      // 2. Fetch ALL transactions from ALL accounts
       let allTransactions = [];
+      
       if (accountsArray.length > 0) {
-        // Try to get transactions from first account
-        const firstAccount = accountsArray[0];
-        const accountId = firstAccount.id || firstAccount._id || firstAccount.accountId;
-        
-        if (accountId) {
-          try {
-            const transactionsData = await ApiService.getTransactions(accountId, { limit: 5 });
-            console.log('Transactions data:', transactionsData);
-            
-            // Handle different response formats
-            if (Array.isArray(transactionsData)) {
-              allTransactions = transactionsData.slice(0, 5);
-            } else if (transactionsData.transactions) {
-              allTransactions = transactionsData.transactions.slice(0, 5);
+        // Fetch transactions from each account
+        for (const account of accountsArray) {
+          const accountId = account.id || account._id || account.accountId;
+          
+          if (accountId) {
+            try {
+              console.log(`🔍 Fetching transactions for account: ${accountId}`);
+              const transactionsData = await ApiService.getTransactions(accountId, { limit: 10 });
+              console.log(`📊 Transactions for account ${accountId}:`, transactionsData);
+              
+              // Handle different response formats
+              let accountTransactions = [];
+              if (Array.isArray(transactionsData)) {
+                accountTransactions = transactionsData;
+              } else if (transactionsData && Array.isArray(transactionsData.transactions)) {
+                accountTransactions = transactionsData.transactions;
+              }
+              
+              // Add account name to each transaction for display
+              const transactionsWithAccount = accountTransactions.map(t => ({
+                ...t,
+                accountName: account.name
+              }));
+              
+              allTransactions = [...allTransactions, ...transactionsWithAccount];
+              
+            } catch (transErr) {
+              console.log(`⚠️ Could not fetch transactions for account ${accountId}:`, transErr.message);
             }
-          } catch (transErr) {
-            console.log('Could not fetch transactions:', transErr.message);
           }
         }
+        
+        // Sort by date (newest first) and take first 5
+        allTransactions.sort((a, b) => {
+          const dateA = a.createdAt || a.date || 0;
+          const dateB = b.createdAt || b.date || 0;
+          return new Date(dateB) - new Date(dateA);
+        });
       }
       
-      setTransactions(allTransactions);
+      console.log('📊 All transactions:', allTransactions.slice(0, 5));
+      setTransactions(allTransactions.slice(0, 5));
       
-      // 3. Calculate stats
+      // 3. Calculate stats - FIXED CALCULATIONS
       const totalBalance = accountsArray.reduce((sum, acc) => 
         sum + (parseFloat(acc.balance) || 0), 0);
       
+      // Calculate income and expense from ALL transactions
       const totalIncome = allTransactions
-        .filter(t => t.type === 'income')
+        .filter(t => t.type && t.type.toLowerCase() === 'income')
         .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
       
       const totalExpense = allTransactions
-        .filter(t => t.type === 'expense')
+        .filter(t => t.type && t.type.toLowerCase() === 'expense')
         .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
       
-      console.log('Calculated stats:', { totalBalance, totalIncome, totalExpense });
+      console.log('📈 Calculated stats:', { 
+        totalBalance, 
+        totalIncome, 
+        totalExpense,
+        transactionCount: allTransactions.length,
+        incomeTransactions: allTransactions.filter(t => t.type && t.type.toLowerCase() === 'income').length,
+        expenseTransactions: allTransactions.filter(t => t.type && t.type.toLowerCase() === 'expense').length
+      });
       
       setStats({
         totalBalance,
@@ -81,7 +110,7 @@ function Dashboard({ currentUser }) {
       });
       
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('❌ Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
@@ -96,14 +125,18 @@ function Dashboard({ currentUser }) {
     );
   }
 
-  // Fix: Get account ID properly
+  // Helper functions
   const getAccountId = (account) => {
     return account.id || account._id || account.accountId;
   };
 
-  // Fix: Get transaction ID properly
   const getTransactionId = (transaction) => {
     return transaction.id || transaction._id || transaction.transactionId;
+  };
+
+  // Get transaction type for display
+  const getTransactionType = (transaction) => {
+    return transaction.type || 'unknown';
   };
 
   return (
@@ -194,13 +227,16 @@ function Dashboard({ currentUser }) {
                 <tr>
                   <th>Date</th>
                   <th>Description</th>
-                  <th>Category</th>
+                  <th>Account</th>
+                  <th>Type</th>
                   <th>Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map(transaction => {
                   const transactionId = getTransactionId(transaction);
+                  const transactionType = getTransactionType(transaction);
+                  
                   return (
                     <tr key={transactionId}>
                       <td>
@@ -210,10 +246,17 @@ function Dashboard({ currentUser }) {
                             ? new Date(transaction.date).toLocaleDateString()
                             : 'N/A')}
                       </td>
-                      <td>{transaction.description || `Transaction`}</td>
-                      <td>{transaction.category || 'Uncategorized'}</td>
-                      <td className={`amount ${transaction.type}`}>
-                        {transaction.type === 'income' ? '+' : '-'}₹
+                      <td>
+                        {transaction.description || `Transaction #${transactionId?.slice(-4) || ''}`}
+                      </td>
+                      <td>{transaction.accountName || 'Unknown Account'}</td>
+                      <td>
+                        <span className={`transaction-type ${transactionType}`}>
+                          {transactionType}
+                        </span>
+                      </td>
+                      <td className={`amount ${transactionType}`}>
+                        {transactionType === 'income' ? '+' : '-'}₹
                         {(transaction.amount || 0).toFixed(2)}
                       </td>
                     </tr>

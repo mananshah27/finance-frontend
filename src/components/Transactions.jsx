@@ -1,28 +1,28 @@
 // src/components/Transactions.jsx - UPDATED WITH FIXES
-import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import ApiService from '../services/api';
-import './Transactions.css';
+import React, { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import ApiService from "../services/api";
+import "./Transactions.css";
 
 function Transactions({ currentUser }) {
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState("");
   const [filters, setFilters] = useState({
-    type: '',
-    categoryId: '',
-    startDate: '',
-    endDate: ''
+    type: "",
+    categoryId: "",
+    startDate: "",
+    endDate: "",
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
-  
+
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const accountId = searchParams.get('account');
+    const accountId = searchParams.get("account");
     if (accountId) {
       setSelectedAccount(accountId);
     }
@@ -39,26 +39,27 @@ function Transactions({ currentUser }) {
   const fetchAccounts = async () => {
     try {
       const userAccounts = await ApiService.getAccounts();
-      console.log('Accounts fetched:', userAccounts);
-      
+      console.log("Accounts fetched:", userAccounts);
+
       // Handle different response formats
-      const accountsArray = Array.isArray(userAccounts) 
-        ? userAccounts 
-        : (userAccounts.accounts || []);
-      
+      const accountsArray = Array.isArray(userAccounts)
+        ? userAccounts
+        : userAccounts.accounts || [];
+
       setAccounts(accountsArray);
-      
+
       if (accountsArray.length > 0 && !selectedAccount) {
         const firstAccount = accountsArray[0];
         // Try different ID fields
-        const accountId = firstAccount.id || firstAccount._id || firstAccount.accountId;
+        const accountId =
+          firstAccount.id || firstAccount._id || firstAccount.accountId;
         if (accountId) {
           setSelectedAccount(String(accountId));
         }
       }
     } catch (err) {
-      console.error('Failed to fetch accounts:', err);
-      setError('Failed to fetch accounts: ' + err.message);
+      console.error("Failed to fetch accounts:", err);
+      setError("Failed to fetch accounts: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -67,16 +68,16 @@ function Transactions({ currentUser }) {
   const fetchCategories = async () => {
     try {
       const data = await ApiService.getCategories();
-      console.log('Categories fetched:', data);
-      
+      console.log("Categories fetched:", data);
+
       // Handle different response formats
-      const categoriesArray = Array.isArray(data) 
-        ? data 
-        : (data.categories || []);
-      
+      const categoriesArray = Array.isArray(data)
+        ? data
+        : data.categories || [];
+
       setCategories(categoriesArray);
     } catch (err) {
-      console.error('Failed to fetch categories:', err);
+      console.error("Failed to fetch categories:", err);
     }
   };
 
@@ -85,17 +86,17 @@ function Transactions({ currentUser }) {
       setTransactions([]);
       return;
     }
-    
+
     setAccountLoading(true);
     try {
-      console.log('Fetching transactions for account:', selectedAccount);
-      
+      console.log("Fetching transactions for account:", selectedAccount);
+
       const data = await ApiService.getTransactions(selectedAccount, filters);
-      console.log('Transactions received:', data);
-      
+      console.log("Transactions received:", data);
+
       // Handle different response formats - FIXED HERE
       let transactionsArray = [];
-      
+
       if (Array.isArray(data)) {
         transactionsArray = data;
       } else if (data && Array.isArray(data.transactions)) {
@@ -103,20 +104,19 @@ function Transactions({ currentUser }) {
       } else if (data && data.message === "No transactions found") {
         transactionsArray = [];
       }
-      
+
       // Debug: Log each transaction
       transactionsArray.forEach((t, i) => {
         console.log(`Transaction ${i}:`, t);
       });
-      
+
       setTransactions(transactionsArray);
-      
     } catch (err) {
-      console.error('Failed to fetch transactions:', err);
+      console.error("Failed to fetch transactions:", err);
       setTransactions([]);
       // Don't show error if it's just "no transactions"
-      if (!err.message.includes('No transactions')) {
-        setError('Failed to load transactions: ' + err.message);
+      if (!err.message.includes("No transactions")) {
+        setError("Failed to load transactions: " + err.message);
       }
     } finally {
       setAccountLoading(false);
@@ -125,66 +125,91 @@ function Transactions({ currentUser }) {
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleDelete = async (transactionId) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
       try {
         await ApiService.deleteTransaction(transactionId, selectedAccount);
         fetchTransactions();
       } catch (err) {
-        setError('Failed to delete transaction: ' + err.message);
+        setError("Failed to delete transaction: " + err.message);
       }
     }
   };
 
   const clearFilters = () => {
     setFilters({
-      type: '',
-      categoryId: '',
-      startDate: '',
-      endDate: ''
+      type: "",
+      categoryId: "",
+      startDate: "",
+      endDate: "",
     });
   };
 
   // Fix: Get category name properly
-  const getCategoryName = (categoryId) => {
-    if (!categoryId) return 'Unknown';
-    
-    const category = categories.find(c => 
-      String(c.id) === String(categoryId) || 
-      String(c._id) === String(categoryId) || 
-      String(c.categoryId) === String(categoryId)
-    );
-    return category ? category.name : 'Unknown';
+  const getCategoryName = (transaction) => {
+    if (!transaction) return "Uncategorized";
+
+    console.log("🔍 Transaction for category lookup:", transaction);
+
+    // Case 1: If transaction has populated category object
+    if (transaction.categoryId && typeof transaction.categoryId === "object") {
+      console.log("✅ Found populated category:", transaction.categoryId);
+      return transaction.categoryId.name || "Uncategorized";
+    }
+
+    // Case 2: If transaction has categoryId string/number
+    if (transaction.categoryId && typeof transaction.categoryId !== "object") {
+      console.log("🔍 Looking for category with ID:", transaction.categoryId);
+
+      const foundCategory = categories.find((cat) => {
+        const catId1 = cat.id;
+        const catId2 = cat._id;
+        const catId3 = cat.categoryId;
+        const searchId = String(transaction.categoryId);
+
+        return (
+          (catId1 && String(catId1) === searchId) ||
+          (catId2 && String(catId2) === searchId) ||
+          (catId3 && String(catId3) === searchId)
+        );
+      });
+
+      return foundCategory ? foundCategory.name : "Uncategorized";
+    }
+
+    return "Uncategorized";
   };
 
   // Fix: Get account name properly
   const getAccountName = () => {
-    if (!selectedAccount || accounts.length === 0) return '';
-    
-    const account = accounts.find(a => 
-      String(a.id) === selectedAccount || 
-      String(a._id) === selectedAccount || 
-      String(a.accountId) === selectedAccount
+    if (!selectedAccount || accounts.length === 0) return "";
+
+    const account = accounts.find(
+      (a) =>
+        String(a.id) === selectedAccount ||
+        String(a._id) === selectedAccount ||
+        String(a.accountId) === selectedAccount,
     );
-    return account ? account.name : '';
+    return account ? account.name : "";
   };
 
   // Fix: Get account balance
   const getAccountBalance = () => {
     if (!selectedAccount || accounts.length === 0) return 0;
-    
-    const account = accounts.find(a => 
-      String(a.id) === selectedAccount || 
-      String(a._id) === selectedAccount || 
-      String(a.accountId) === selectedAccount
+
+    const account = accounts.find(
+      (a) =>
+        String(a.id) === selectedAccount ||
+        String(a._id) === selectedAccount ||
+        String(a.accountId) === selectedAccount,
     );
-    return account ? (parseFloat(account.balance) || 0) : 0;
+    return account ? parseFloat(account.balance) || 0 : 0;
   };
 
   // Fix: Get account ID for display
@@ -199,40 +224,40 @@ function Transactions({ currentUser }) {
 
   // NEW: Fix for transaction type display - ADD THIS FUNCTION
   const getTransactionTypeDisplay = (transaction) => {
-    if (!transaction) return { className: 'unknown', text: 'Unknown' };
-    
-    const type = transaction.type || '';
-    if (type.toLowerCase() === 'income') {
-      return { className: 'income', text: 'Income' };
-    } else if (type.toLowerCase() === 'expense') {
-      return { className: 'expense', text: 'Expense' };
+    if (!transaction) return { className: "unknown", text: "Unknown" };
+
+    const type = transaction.type || "";
+    if (type.toLowerCase() === "income") {
+      return { className: "income", text: "Income" };
+    } else if (type.toLowerCase() === "expense") {
+      return { className: "expense", text: "Expense" };
     } else {
-      return { className: 'unknown', text: type || 'Unknown' };
+      return { className: "unknown", text: type || "Unknown" };
     }
   };
 
   // NEW: Fix for amount display - ADD THIS FUNCTION
   const getAmountDisplay = (transaction) => {
-    if (!transaction) return { sign: '', amount: '0.00', className: 'unknown' };
-    
-    const type = transaction.type || '';
+    if (!transaction) return { sign: "", amount: "0.00", className: "unknown" };
+
+    const type = transaction.type || "";
     const amount = parseFloat(transaction.amount) || 0;
-    
-    let sign = '';
-    let className = 'unknown';
-    
-    if (type.toLowerCase() === 'income') {
-      sign = '+';
-      className = 'income';
-    } else if (type.toLowerCase() === 'expense') {
-      sign = '-';
-      className = 'expense';
+
+    let sign = "";
+    let className = "unknown";
+
+    if (type.toLowerCase() === "income") {
+      sign = "+";
+      className = "income";
+    } else if (type.toLowerCase() === "expense") {
+      sign = "-";
+      className = "expense";
     }
-    
-    return { 
-      sign, 
-      amount: amount.toFixed(2), 
-      className 
+
+    return {
+      sign,
+      amount: amount.toFixed(2),
+      className,
     };
   };
 
@@ -254,30 +279,27 @@ function Transactions({ currentUser }) {
         </Link>
       </div>
 
-      {error && (
-        <div className="alert alert-error">
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error">{error}</div>}
 
       <div className="transactions-container">
         <div className="filters-section">
           <div className="filter-card">
             <h3>Filters</h3>
-            
+
             <div className="filter-group">
               <label>Account</label>
-              <select 
+              <select
                 className="form-select"
                 value={selectedAccount}
                 onChange={(e) => setSelectedAccount(e.target.value)}
               >
                 <option value="">Select Account</option>
-                {accounts.map(account => {
+                {accounts.map((account) => {
                   const accountId = getAccountIdForDisplay(account);
                   return (
                     <option key={accountId} value={accountId}>
-                      {account.name} (₹{(parseFloat(account.balance) || 0).toFixed(2)})
+                      {account.name} (₹
+                      {(parseFloat(account.balance) || 0).toFixed(2)})
                     </option>
                   );
                 })}
@@ -286,7 +308,7 @@ function Transactions({ currentUser }) {
 
             <div className="filter-group">
               <label>Transaction Type</label>
-              <select 
+              <select
                 name="type"
                 className="form-select"
                 value={filters.type}
@@ -300,18 +322,19 @@ function Transactions({ currentUser }) {
 
             <div className="filter-group">
               <label>Category</label>
-              <select 
+              <select
                 name="categoryId"
                 className="form-select"
                 value={filters.categoryId}
                 onChange={handleFilterChange}
               >
                 <option value="">All Categories</option>
-                {categories.map(category => {
-                  const categoryId = category.id || category._id || category.categoryId;
+                {categories.map((category) => {
+                  const categoryId =
+                    category.id || category._id || category.categoryId;
                   return (
                     <option key={categoryId} value={categoryId}>
-                      {category.name} ({category.type || 'unknown'})
+                      {category.name} ({category.type || "unknown"})
                     </option>
                   );
                 })}
@@ -342,10 +365,7 @@ function Transactions({ currentUser }) {
               </div>
             </div>
 
-            <button 
-              onClick={clearFilters}
-              className="btn btn-outline"
-            >
+            <button onClick={clearFilters} className="btn btn-outline">
               Clear Filters
             </button>
           </div>
@@ -353,9 +373,15 @@ function Transactions({ currentUser }) {
           {selectedAccount && accounts.length > 0 && (
             <div className="account-summary">
               <h3>Account Summary</h3>
-              <p><strong>Account:</strong> {getAccountName()}</p>
-              <p><strong>Balance:</strong> ₹{getAccountBalance().toFixed(2)}</p>
-              <p><strong>Transactions:</strong> {transactions.length}</p>
+              <p>
+                <strong>Account:</strong> {getAccountName()}
+              </p>
+              <p>
+                <strong>Balance:</strong> ₹{getAccountBalance().toFixed(2)}
+              </p>
+              <p>
+                <strong>Transactions:</strong> {transactions.length}
+              </p>
             </div>
           )}
         </div>
@@ -397,31 +423,35 @@ function Transactions({ currentUser }) {
                     const transactionId = getTransactionId(transaction);
                     const typeDisplay = getTransactionTypeDisplay(transaction); // USE NEW FUNCTION
                     const amountDisplay = getAmountDisplay(transaction); // USE NEW FUNCTION
-                    
+
                     return (
                       <tr key={transactionId || index}>
                         <td>
-                          {transaction.createdAt 
-                            ? new Date(transaction.createdAt).toLocaleDateString()
-                            : (transaction.date 
+                          {transaction.createdAt
+                            ? new Date(
+                                transaction.createdAt,
+                              ).toLocaleDateString()
+                            : transaction.date
                               ? new Date(transaction.date).toLocaleDateString()
-                              : 'N/A')}
+                              : "N/A"}
                         </td>
                         <td>
                           {/* FIXED: Use new function for type display */}
-                          <span className={`transaction-type ${typeDisplay.className}`}>
+                          <span
+                            className={`transaction-type ${typeDisplay.className}`}
+                          >
                             {typeDisplay.text}
                           </span>
                         </td>
-                        <td>{getCategoryName(transaction.categoryId)}</td>
-                        <td>{transaction.description || '-'}</td>
+                        <td>{getCategoryName(transaction)}</td>
+                        <td>{transaction.description || "-"}</td>
                         <td className={`amount ${amountDisplay.className}`}>
                           {/* FIXED: Use new function for amount display */}
                           {amountDisplay.sign}₹{amountDisplay.amount}
                         </td>
                         <td>
                           <div className="action-buttons">
-                            <Link 
+                            <Link
                               to={`/transactions/edit/${transactionId}`}
                               className="btn btn-sm btn-outline"
                             >
@@ -443,29 +473,28 @@ function Transactions({ currentUser }) {
 
               <div className="transactions-summary">
                 <p>
-                  <strong>Total Income:</strong> ₹{
-                    transactions
-                      .filter(t => t.type && t.type.toLowerCase() === 'income')
-                      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
-                      .toFixed(2)
-                  }
+                  <strong>Total Income:</strong> ₹
+                  {transactions
+                    .filter((t) => t.type && t.type.toLowerCase() === "income")
+                    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
+                    .toFixed(2)}
                 </p>
                 <p>
-                  <strong>Total Expense:</strong> ₹{
-                    transactions
-                      .filter(t => t.type && t.type.toLowerCase() === 'expense')
-                      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
-                      .toFixed(2)
-                  }
+                  <strong>Total Expense:</strong> ₹
+                  {transactions
+                    .filter((t) => t.type && t.type.toLowerCase() === "expense")
+                    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
+                    .toFixed(2)}
                 </p>
                 <p>
-                  <strong>Net Balance:</strong> ₹{
-                    transactions.reduce((sum, t) => {
+                  <strong>Net Balance:</strong> ₹
+                  {transactions
+                    .reduce((sum, t) => {
                       const amount = parseFloat(t.amount) || 0;
-                      const type = t.type ? t.type.toLowerCase() : '';
-                      return type === 'income' ? sum + amount : sum - amount;
-                    }, 0).toFixed(2)
-                  }
+                      const type = t.type ? t.type.toLowerCase() : "";
+                      return type === "income" ? sum + amount : sum - amount;
+                    }, 0)
+                    .toFixed(2)}
                 </p>
               </div>
             </>

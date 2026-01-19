@@ -1,10 +1,9 @@
-// src/components/Profile.jsx - FIXED VERSION
+// Profile.jsx - SIMPLIFIED VERSION (Remove profileLoading)
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ApiService from '../services/api';
 import './Profile.css';
 
-// Profile.jsx - QUICK FIX
 function Profile({ currentUser, setCurrentUser }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -21,10 +20,11 @@ function Profile({ currentUser, setCurrentUser }) {
   
   const navigate = useNavigate();
 
-  // FIX: Direct localStorage se data load karein
+  // FIX: Simple data load from currentUser
   useEffect(() => {
+    console.log('Profile: currentUser received:', currentUser);
+    
     if (currentUser) {
-      console.log('Current user from props:', currentUser);
       setFormData({
         name: currentUser.name || currentUser.Name || '',
         lastName: currentUser.lastName || currentUser.LastName || '',
@@ -52,6 +52,7 @@ function Profile({ currentUser, setCurrentUser }) {
     setError('');
     setSuccess('');
 
+    // Validate
     if (formData.password && formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -66,22 +67,23 @@ function Profile({ currentUser, setCurrentUser }) {
         mobileNo: formData.mobileNo
       };
 
+      // Add password only if provided
       if (formData.password) {
         updates.password = formData.password;
       }
 
       console.log('Updating profile with:', updates);
       
-      // Try to update via API
+      // Try API update
       let apiResponse = null;
       try {
         apiResponse = await ApiService.updateProfile(updates);
-        console.log('API Update response:', apiResponse);
+        console.log('API update response:', apiResponse);
       } catch (apiErr) {
-        console.warn('API update failed, updating localStorage only:', apiErr);
+        console.warn('API update failed, using localStorage:', apiErr);
       }
 
-      // Update localStorage regardless
+      // Update localStorage
       const updatedUser = { 
         ...currentUser, 
         ...updates,
@@ -91,23 +93,27 @@ function Profile({ currentUser, setCurrentUser }) {
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
       
-      setSuccess('Profile updated successfully!');
-      setIsEditing(false);
-      setFormData(prev => ({ 
-        ...prev, 
-        password: '', 
+      // Update form (clear passwords)
+      setFormData(prev => ({
+        ...prev,
+        name: updatedUser.name || updatedUser.Name || '',
+        lastName: updatedUser.lastName || updatedUser.LastName || '',
+        email: updatedUser.email || updatedUser.Email || '',
+        mobileNo: updatedUser.mobileNo || updatedUser.Mobile_No || '',
+        password: '',
         confirmPassword: ''
       }));
       
+      setSuccess('Profile updated successfully!');
+      setIsEditing(false);
+      
     } catch (err) {
-      console.error('Update error:', err);
+      console.error('Profile update error:', err);
       setError(err.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }
   };
-
-  // Rest of the component remains same...
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -121,16 +127,6 @@ function Profile({ currentUser, setCurrentUser }) {
       }
     }
   };
-
-  // eslint-disable-next-line no-undef
-  if (profileLoading) {
-    return (
-      <div className="profile-page">
-        <div className="loading-spinner"></div>
-        <p>Loading profile...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="profile-page">
@@ -215,14 +211,14 @@ function Profile({ currentUser, setCurrentUser }) {
 
             <div className="form-group">
               <label className="form-label">Email</label>
-              <input
-                type="email"
-                name="email"
-                className="form-input"
-                value={formData.email}
-                onChange={handleChange}
-                disabled={!isEditing}
-              />
+                <input
+                  type="email"
+                  name="email"
+                  className="form-input"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                />
             </div>
 
             <div className="form-group">

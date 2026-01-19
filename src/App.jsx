@@ -5,28 +5,61 @@ import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import Accounts from './components/Accounts';
 import AccountForm from './components/AccountForm';
-import Transactions from './components/Transactions'; // Fixed
+import Transactions from './components/Transactions';
 import TransactionForm from './components/TransactionForm';
 import Categories from './components/Categories';
 import CategoryForm from './components/CategoryForm';
 import Profile from './components/Profile';
 import Navigation from './components/Navigation';
+import ApiService from './services/api'; // Import ApiService
 import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true); // Add loading state
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const user = localStorage.getItem('currentUser');
-    const token = localStorage.getItem('authToken');
-    
-    if (user && token) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsAuthenticated(true);
-      setCurrentUser(JSON.parse(user));
-    }
+    // Check authentication on app load
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token'); // Changed: 'authToken' -> 'token'
+      const user = localStorage.getItem('currentUser');
+      
+      console.log('Auth check - Token:', token);
+      console.log('Auth check - User:', user);
+      
+      if (token && user) {
+        try {
+          // Verify token is still valid
+          const profileData = await ApiService.getProfile();
+          console.log('Token verified, profile:', profileData);
+          
+          // Update user with fresh data
+          const updatedUser = {
+            ...JSON.parse(user),
+            ...profileData.user,
+            ...profileData
+          };
+          
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+          setIsAuthenticated(true);
+        } catch (err) {
+          console.log('Token invalid or expired:', err);
+          // Clear invalid data
+          ApiService.logout();
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+      }
+      
+      setLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const handleLogin = (user) => {
@@ -35,11 +68,20 @@ function App() {
   };
 
   const handleLogout = () => {
+    ApiService.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('authToken');
   };
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading application...</p>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -54,7 +96,7 @@ function App() {
             } />
             <Route path="/register" element={
               isAuthenticated ? <Navigate to="/dashboard" /> : 
-              <Register />
+              <Register onRegister={handleLogin} />
             } />
             <Route path="/dashboard" element={
               <PrivateRoute isAuthenticated={isAuthenticated}>
@@ -86,12 +128,22 @@ function App() {
                 <TransactionForm currentUser={currentUser} />
               </PrivateRoute>
             } />
+            <Route path="/transactions/edit/:id" element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <TransactionForm currentUser={currentUser} />
+              </PrivateRoute>
+            } />
             <Route path="/categories" element={
               <PrivateRoute isAuthenticated={isAuthenticated}>
                 <Categories currentUser={currentUser} />
               </PrivateRoute>
             } />
             <Route path="/categories/new" element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <CategoryForm currentUser={currentUser} />
+              </PrivateRoute>
+            } />
+            <Route path="/categories/edit/:id" element={
               <PrivateRoute isAuthenticated={isAuthenticated}>
                 <CategoryForm currentUser={currentUser} />
               </PrivateRoute>

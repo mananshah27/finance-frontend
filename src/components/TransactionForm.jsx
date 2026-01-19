@@ -16,6 +16,7 @@ function TransactionForm({ currentUser }) {
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   // eslint-disable-next-line no-unused-vars
@@ -119,70 +120,59 @@ function TransactionForm({ currentUser }) {
     setError("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+ // TransactionForm.jsx mein handleSubmit function UPDATE karein:
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
 
-    console.log("Current form data:", formData);
+  console.log("🔄 Current form data:", formData);
 
-    // Validate
-    if (!formData.accountId || formData.accountId.includes('₹')) {
-      setError("Please select a valid account");
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      setError("Please enter a valid amount");
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.categoryId) {
-      setError("Please select a category");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Prepare data
-      const transactionData = {
-        amount: parseFloat(formData.amount),
-        type: formData.type,
-        categoryId: formData.categoryId,
-        accountId: formData.accountId,
-      };
-
-      if (formData.description.trim()) {
-        transactionData.description = formData.description.trim();
-      }
-
-      console.log("Sending transaction:", transactionData);
-
-      const response = await ApiService.createTransaction(transactionData);
-      console.log("Transaction created:", response);
-
-      navigate("/transactions");
-    } catch (err) {
-      console.error("Transaction error:", err);
-      setError(err.message || "Failed to save transaction");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Loading state
-  if (initialLoading) {
-    return (
-      <div className="form-page">
-        <div className="form-card">
-          <div className="loading-spinner"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+  // Validate
+  if (!formData.accountId) {
+    setError("Please select an account");
+    setLoading(false);
+    return;
   }
+
+  if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    setError("Please enter a valid amount");
+    setLoading(false);
+    return;
+  }
+
+  if (!formData.categoryId) {
+    setError("Please select a category");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    // Simple data - backend will validate
+    const transactionData = {
+      amount: parseFloat(formData.amount),
+      type: formData.type,
+      categoryId: formData.categoryId, // Direct ID bhejo
+      accountId: formData.accountId,
+    };
+
+    if (formData.description.trim()) {
+      transactionData.description = formData.description.trim();
+    }
+
+    console.log("📤 Sending transaction:", transactionData);
+
+    const response = await ApiService.createTransaction(transactionData);
+    console.log("✅ Transaction created:", response);
+
+    navigate("/transactions");
+  } catch (err) {
+    console.error("❌ Transaction error:", err);
+    setError(err.message || "Failed to save transaction");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="form-page">

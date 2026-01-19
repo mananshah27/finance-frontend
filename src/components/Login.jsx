@@ -1,59 +1,63 @@
 // src/components/Login.jsx - UPDATED
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import ApiService from '../services/api';
-import './Login.css';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import ApiService from "../services/api";
+import "./Login.css";
 
 function Login({ onLogin }) {
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
-    setError('');
+    setError("");
   };
 
+  // Login.js mein login function
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const data = await ApiService.login(formData);
-      
-      // Store user info in localStorage (already done in ApiService)
-      onLogin(data.user);
-      navigate('/dashboard');
-      
+      const response = await ApiService.login(formData);
+      console.log("Login response:", response);
+
+      if (response.token) {
+        // ApiService already saves token and currentUser
+        // Just update the state
+        onLogin(response.user);
+      } else {
+        throw new Error("Invalid login response");
+      }
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      console.error("Login error:", err);
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="auth-container">
       <div className="auth-card">
         <h2 className="auth-title">Login to Finance Tracker</h2>
-        
-        {error && (
-          <div className="alert alert-error">
-            {error}
-          </div>
-        )}
+
+        {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email" className="form-label">Email</label>
+            <label htmlFor="email" className="form-label">
+              Email
+            </label>
             <input
               type="email"
               id="email"
@@ -67,7 +71,9 @@ function Login({ onLogin }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password" className="form-label">Password</label>
+            <label htmlFor="password" className="form-label">
+              Password
+            </label>
             <input
               type="password"
               id="password"
@@ -80,12 +86,12 @@ function Login({ onLogin }) {
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn btn-primary btn-block"
             disabled={loading}
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
